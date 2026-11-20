@@ -6,7 +6,7 @@ services:
     image: ghcr.io/joe12801/music-mp3-api:1.2.0
     # image: joe1280/music-mp3-api:1.2.0
     # 国内服务器可换成阿里云 ACR（华南3·广州）：
-    # image: registry.cn-guangzhou.aliyuncs.com/joe1280/music-mp3-api:1.2.0
+    # image: crpi-wv2uaegt8g2y0g3c.cn-guangzhou.personal.cr.aliyuncs.com/joeloveqt-project/music-mp3-api:1.2.0
     container_name: music-mp3-api
     restart: unless-stopped
     ports:

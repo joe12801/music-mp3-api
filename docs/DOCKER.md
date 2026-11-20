@@ -8,18 +8,18 @@ Music MP3 API 提供官方容器镜像，内置 **Python 3.12 + ffmpeg（libmp3l
 | --- | --- |
 | GitHub Container Registry（GHCR） | `ghcr.io/joe12801/music-mp3-api` |
 | Docker Hub | `joe1280/music-mp3-api`（<https://hub.docker.com/r/joe1280/music-mp3-api>） |
-| 阿里云 ACR（华南3·广州，国内加速） | `registry.cn-guangzhou.aliyuncs.com/joe1280/music-mp3-api` |
+| 阿里云 ACR（华南3·广州，国内加速） | `crpi-wv2uaegt8g2y0g3c.cn-guangzhou.personal.cr.aliyuncs.com/joeloveqt-project/music-mp3-api` |
 
 标签：`latest`（main 分支）、`1.2.0`（与 `app/__init__.py` 版本一致）、`sha-<短提交>`、以及打 `v*` tag 时的版本标签。CI 同时构建 **linux/amd64** 与 **linux/arm64** 两种架构，`docker pull` 会自动选匹配本机的镜像；另有 `1.2.0-arm64` 为 ARM64 单架构镜像（在 ARM64 服务器上原生构建，GHCR 与 Docker Hub 均有）。
 
-三处仓库推送的是**同一份多架构 manifest**（digest 相同）。国内服务器建议优先用阿里云 ACR 地址，拉取速度通常明显快于 GHCR / Docker Hub。
+三处仓库的 **amd64 / arm64 子镜像与层完全一致**（同一份构建产物）。ACR 个人版不接受带 provenance attestation 的 OCI index，因此 ACR 上的 manifest list 去掉了 attestation（CI 已设 `provenance: false`），list 级 digest 与 GHCR / Docker Hub 略有不同，但镜像内容相同。国内服务器建议优先用阿里云 ACR 地址，拉取速度通常明显快于 GHCR / Docker Hub。
 
 ```bash
 docker pull ghcr.io/joe12801/music-mp3-api:1.2.0
 docker pull ghcr.io/joe12801/music-mp3-api:latest
 docker pull joe1280/music-mp3-api:1.2.0
 # 国内加速（华南3·广州）
-docker pull registry.cn-guangzhou.aliyuncs.com/joe1280/music-mp3-api:1.2.0
+docker pull crpi-wv2uaegt8g2y0g3c.cn-guangzhou.personal.cr.aliyuncs.com/joeloveqt-project/music-mp3-api:1.2.0
 ```
 
 ## 快速运行
@@ -106,10 +106,14 @@ docker buildx build --platform linux/amd64,linux/arm64 -t <你的仓库>/music-m
 | --- | --- |
 | `ACR_USERNAME` | ACR 控制台「仓库管理 → 访问凭证」显示的**登录名**（主账号为阿里云账号全名，常为手机号/邮箱；RAM 用户去掉 `.onaliyun.com` 后缀） |
 | `ACR_PASSWORD` | 同页面「设置固定密码」设置的 **Registry 固定密码**（docker login 专用，**不是**阿里云账号登录密码） |
-| `ACR_REGISTRY` | 可选，默认 `registry.cn-guangzhou.aliyuncs.com`；2024 年 9 月后新建的个人版实例域名为 `crpi-xxxxxxxx.cn-guangzhou.personal.cr.aliyuncs.com`，请从访问凭证页复制 |
-| `ACR_NAMESPACE` | 可选，默认 `joe1280` |
+| `ACR_REGISTRY` | 可选，默认 `crpi-wv2uaegt8g2y0g3c.cn-guangzhou.personal.cr.aliyuncs.com`（2024 年 9 月后新建的**个人版实例**域名，从「访问凭证」页复制）；只有旧版实例才用 `registry.cn-guangzhou.aliyuncs.com` |
+| `ACR_NAMESPACE` | 可选，默认 `joeloveqt-project`（需是账号下已创建的命名空间，ACR 个人版不会自动创建命名空间） |
 
-> ACR 个人版自动创建的仓库**默认是私有**的。若希望像 GHCR / Docker Hub 一样匿名 `docker pull`，请在控制台把 `music-mp3-api` 仓库类型改为「公开」（或在命名空间设置里把默认仓库类型设为公有）。
+> **ACR 个人版的两个坑**（已在本项目处理）：
+> 1. 新版实例域名是 `crpi-*.personal.cr.aliyuncs.com`，用老的 `registry.cn-*.aliyuncs.com` 登录会一直 `unauthorized`；
+> 2. 它不接受带 provenance attestation 的 OCI index（报 `unknown manifest class for application/vnd.oci.empty.v1+json`），CI 已设 `provenance: false` / `sbom: false`。手动推送可用 `docker pull <repo>@<子镜像 digest>` 取纯单架构镜像，再用 `docker manifest create` 组合。
+>
+> 自动创建的仓库**默认是私有**的。若希望像 GHCR / Docker Hub 一样匿名 `docker pull`，请在控制台把 `music-mp3-api` 仓库类型改为「公开」（或在命名空间设置里把默认仓库类型设为公有）。
 
 保存后手动触发一次 `Docker` workflow（Actions → Docker → Run workflow），或再推一次代码即可。未配置某个仓库的 secrets 时 workflow 会打印提示并跳过该仓库，不会失败。
 

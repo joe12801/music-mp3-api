@@ -119,10 +119,10 @@ python run.py                  :: 也可直接双击 start.bat
 **Docker（Linux / macOS / Windows 都可用）**：官方镜像内置 Python 3.12、ffmpeg、Node.js、yt-dlp 与 PySocks，宿主机只需 Docker；CI 自动构建 **linux/amd64 + linux/arm64** 双架构并发布到 **GHCR**、**Docker Hub** 与 **阿里云 ACR（华南3·广州，国内拉取更快）**。完整说明见 [`docs/DOCKER.md`](docs/DOCKER.md)。
 
 ```bash
-# 直接拉官方镜像（三处仓库是同一份多架构 manifest）
+# 直接拉官方镜像（三处仓库镜像内容一致）
 #   GHCR         ghcr.io/joe12801/music-mp3-api:1.2.0
 #   Docker Hub   joe1280/music-mp3-api:1.2.0
-#   阿里云 ACR    registry.cn-guangzhou.aliyuncs.com/joe1280/music-mp3-api:1.2.0   ← 国内更快
+#   阿里云 ACR    crpi-wv2uaegt8g2y0g3c.cn-guangzhou.personal.cr.aliyuncs.com/joeloveqt-project/music-mp3-api:1.2.0   ← 国内更快
 docker run -d --name music-api -p 127.0.0.1:8000:8000 \
   -e MUSIC_API_KEY=<你的 API Key> \
   -v mp3-cache:/app/data/cache \
@@ -136,7 +136,7 @@ cp .env.example .env && docker compose up -d
 docker build -t music-mp3-api:local .
 
 # 国内服务器建议改拉阿里云镜像（与 GHCR / Docker Hub 内容一致）
-docker pull registry.cn-guangzhou.aliyuncs.com/joe1280/music-mp3-api:1.2.0
+docker pull crpi-wv2uaegt8g2y0g3c.cn-guangzhou.personal.cr.aliyuncs.com/joeloveqt-project/music-mp3-api:1.2.0
 docker pull joe1280/music-mp3-api:1.2.0
 ```
 

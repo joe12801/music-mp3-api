@@ -88,8 +88,8 @@ jobs:
         run: |
           if [ -n "$U" ] && [ -n "$T" ]; then
             echo "enabled=true" >> "$GITHUB_OUTPUT"
-            echo "registry=${R:-registry.cn-guangzhou.aliyuncs.com}" >> "$GITHUB_OUTPUT"
-            echo "namespace=${N:-joe1280}" >> "$GITHUB_OUTPUT"
+            echo "registry=${R:-crpi-wv2uaegt8g2y0g3c.cn-guangzhou.personal.cr.aliyuncs.com}" >> "$GITHUB_OUTPUT"
+            echo "namespace=${N:-joeloveqt-project}" >> "$GITHUB_OUTPUT"
             echo "阿里云 ACR 推送已启用"
           else
             echo "enabled=false" >> "$GITHUB_OUTPUT"
@@ -164,5 +164,8 @@ jobs:
             ${{ steps.meta_dh.outputs.tags }}
             ${{ steps.meta_acr.outputs.tags }}
           labels: ${{ steps.meta_ghcr.outputs.labels }}
+          # 阿里云 ACR 个人版不接受 provenance attestation（vnd.oci.empty.v1+json），必须关闭
+          provenance: false
+          sbom: false
           cache-from: type=gha
           cache-to: type=gha,mode=max
