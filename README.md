@@ -414,6 +414,7 @@ music-mp3-api/
 ├── run.py / start.bat
 ├── Dockerfile
 ├── LICENSE              # MIT
+├── NOTICE.md            # 合规声明与第三方组件说明
 ├── .gitattributes
 └── README.md / docs/
 ```
