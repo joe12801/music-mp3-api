@@ -12,7 +12,7 @@ cp .env.example .env        # Windows: copy .env.example .env
 python run.py               # http://127.0.0.1:8000
 ```
 
-> 仓库内所有域名、邮箱、路径均为示例占位符；真实部署值只放在本机 `.env`（已 gitignore）。完整接入文档见 [`docs/API.md`](docs/API.md)，机器可读规格见 [`docs/openapi.json`](docs/openapi.json)。
+> 私有部署相关的域名、邮箱、路径均为示例占位符（公开仓库中的镜像地址除外）；真实部署值只放在本机 `.env`（已 gitignore）。完整接入文档见 [`docs/API.md`](docs/API.md)，机器可读规格见 [`docs/openapi.json`](docs/openapi.json)。
 
 ```
 请求 url / q / video_id
@@ -116,10 +116,13 @@ python run.py                  :: 也可直接双击 start.bat
 
 打开 <http://127.0.0.1:8000> 用演示页，或 <http://127.0.0.1:8000/docs> 看 Swagger 文档（端口由 `MUSIC_PORT` 决定，改 `.env` 即可自定义）。
 
-**Docker（Linux / macOS / Windows 都可用）**：官方镜像内置 Python 3.12、ffmpeg、Node.js、yt-dlp 与 PySocks，宿主机只需 Docker；CI 自动构建 **linux/amd64 + linux/arm64** 双架构并发布到 **GHCR** 与 **Docker Hub**。完整说明见 [`docs/DOCKER.md`](docs/DOCKER.md)。
+**Docker（Linux / macOS / Windows 都可用）**：官方镜像内置 Python 3.12、ffmpeg、Node.js、yt-dlp 与 PySocks，宿主机只需 Docker；CI 自动构建 **linux/amd64 + linux/arm64** 双架构并发布到 **GHCR**、**Docker Hub** 与 **阿里云 ACR（华南3·广州，国内拉取更快）**。完整说明见 [`docs/DOCKER.md`](docs/DOCKER.md)。
 
 ```bash
-# 直接拉官方镜像（GHCR；Docker Hub 地址为 joe1280/music-mp3-api:1.2.0）
+# 直接拉官方镜像（三处仓库是同一份多架构 manifest）
+#   GHCR         ghcr.io/joe12801/music-mp3-api:1.2.0
+#   Docker Hub   joe1280/music-mp3-api:1.2.0
+#   阿里云 ACR    registry.cn-guangzhou.aliyuncs.com/joe1280/music-mp3-api:1.2.0   ← 国内更快
 docker run -d --name music-api -p 127.0.0.1:8000:8000 \
   -e MUSIC_API_KEY=<你的 API Key> \
   -v mp3-cache:/app/data/cache \
@@ -132,7 +135,8 @@ cp .env.example .env && docker compose up -d
 # 也可本地构建
 docker build -t music-mp3-api:local .
 
-# Docker Hub 镜像（同一份多架构 manifest）
+# 国内服务器建议改拉阿里云镜像（与 GHCR / Docker Hub 内容一致）
+docker pull registry.cn-guangzhou.aliyuncs.com/joe1280/music-mp3-api:1.2.0
 docker pull joe1280/music-mp3-api:1.2.0
 ```
 
@@ -558,5 +562,5 @@ music-mp3-api/
 
 - **绝不入库**：`.env`（含真实 `MUSIC_API_KEY`）、`data/cookies*.txt`、Cookie-Editor 导出的中间文件、Chrome profile 备份、`*.log`（访问日志含完整请求 URL 与 `api_key`）、缓存音频、`downloads/*.mp3`、本机运维脚本。`.gitignore` 已逐项覆盖。
 - **文档脱敏**：README / `docs/API.md` 中的域名、邮箱、IP、绝对路径均为示例占位符，请替换为你自己的部署值。
-- **镜像安全**：`.dockerignore` 是白名单，只放构建必需文件；`.env`、`data/cookies*.txt`、`*.log`、缓存音频不会进入构建上下文或镜像层。GHCR 由 CI 用 `GITHUB_TOKEN` 推送，Docker Hub 凭据仅存 GitHub Actions secrets，不入库。
+- **镜像安全**：`.dockerignore` 是白名单，只放构建必需文件；`.env`、`data/cookies*.txt`、`*.log`、缓存音频不会进入构建上下文或镜像层。GHCR 由 CI 用 `GITHUB_TOKEN` 推送，Docker Hub 与阿里云 ACR 的登录凭据仅存 GitHub Actions secrets，不入库；仓库里只保留公开的镜像拉取地址。
 - **合规**：本项目仅作技术演示与个人自用，请勿用于公开分发、商业服务或侵犯版权的内容，详见顶部合规提示。

@@ -8,13 +8,18 @@ Music MP3 API 提供官方容器镜像，内置 **Python 3.12 + ffmpeg（libmp3l
 | --- | --- |
 | GitHub Container Registry（GHCR） | `ghcr.io/joe12801/music-mp3-api` |
 | Docker Hub | `joe1280/music-mp3-api`（<https://hub.docker.com/r/joe1280/music-mp3-api>） |
+| 阿里云 ACR（华南3·广州，国内加速） | `registry.cn-guangzhou.aliyuncs.com/joe1280/music-mp3-api` |
 
 标签：`latest`（main 分支）、`1.2.0`（与 `app/__init__.py` 版本一致）、`sha-<短提交>`、以及打 `v*` tag 时的版本标签。CI 同时构建 **linux/amd64** 与 **linux/arm64** 两种架构，`docker pull` 会自动选匹配本机的镜像；另有 `1.2.0-arm64` 为 ARM64 单架构镜像（在 ARM64 服务器上原生构建，GHCR 与 Docker Hub 均有）。
+
+三处仓库推送的是**同一份多架构 manifest**（digest 相同）。国内服务器建议优先用阿里云 ACR 地址，拉取速度通常明显快于 GHCR / Docker Hub。
 
 ```bash
 docker pull ghcr.io/joe12801/music-mp3-api:1.2.0
 docker pull ghcr.io/joe12801/music-mp3-api:latest
 docker pull joe1280/music-mp3-api:1.2.0
+# 国内加速（华南3·广州）
+docker pull registry.cn-guangzhou.aliyuncs.com/joe1280/music-mp3-api:1.2.0
 ```
 
 ## 快速运行
@@ -86,7 +91,7 @@ docker buildx build --platform linux/amd64,linux/arm64 -t <你的仓库>/music-m
 仓库的 [`.github/workflows/docker.yml`](../.github/workflows/docker.yml) 在 `push main`、打 `v*` tag 或手动触发时执行：
 
 1. `smoke`：原生 amd64 构建 → 启动容器 → 检查 `/api/health`、`node --version`、`ffmpeg -version`；
-2. `publish`：QEMU + buildx 构建 amd64/arm64 → 推送 **GHCR**（用 `GITHUB_TOKEN`，无需额外凭据）；若配置了 Docker Hub secrets，同时推送 Docker Hub。
+2. `publish`：QEMU + buildx 构建 amd64/arm64 → 推送 **GHCR**（用 `GITHUB_TOKEN`，无需额外凭据）；若配置了对应 secrets，同时推送 **Docker Hub** 与 **阿里云 ACR**。
 
 **启用 Docker Hub 推送**：在 GitHub 仓库 `Settings → Secrets and variables → Actions` 添加两个 Repository secrets：
 
@@ -95,7 +100,18 @@ docker buildx build --platform linux/amd64,linux/arm64 -t <你的仓库>/music-m
 | `DOCKERHUB_USERNAME` | Docker Hub 用户名（当前为 `joe1280`） |
 | `DOCKERHUB_TOKEN` | Docker Hub **Access Token**（不是登录密码，建议只读/写范围限定到该仓库） |
 
-保存后手动触发一次 `Docker` workflow（Actions → Docker → Run workflow），或再推一次代码即可。未配置时 workflow 会打印提示并只推 GHCR，不会失败。
+**启用阿里云 ACR 推送**（个人版实例，地域华南3·广州）：添加以下 Repository secrets：
+
+| Secret | 值 |
+| --- | --- |
+| `ACR_USERNAME` | ACR 控制台「仓库管理 → 访问凭证」显示的**登录名**（主账号为阿里云账号全名，常为手机号/邮箱；RAM 用户去掉 `.onaliyun.com` 后缀） |
+| `ACR_PASSWORD` | 同页面「设置固定密码」设置的 **Registry 固定密码**（docker login 专用，**不是**阿里云账号登录密码） |
+| `ACR_REGISTRY` | 可选，默认 `registry.cn-guangzhou.aliyuncs.com`；2024 年 9 月后新建的个人版实例域名为 `crpi-xxxxxxxx.cn-guangzhou.personal.cr.aliyuncs.com`，请从访问凭证页复制 |
+| `ACR_NAMESPACE` | 可选，默认 `joe1280` |
+
+> ACR 个人版自动创建的仓库**默认是私有**的。若希望像 GHCR / Docker Hub 一样匿名 `docker pull`，请在控制台把 `music-mp3-api` 仓库类型改为「公开」（或在命名空间设置里把默认仓库类型设为公有）。
+
+保存后手动触发一次 `Docker` workflow（Actions → Docker → Run workflow），或再推一次代码即可。未配置某个仓库的 secrets 时 workflow 会打印提示并跳过该仓库，不会失败。
 
 > GHCR 包通过 `GITHUB_TOKEN` 推送，默认继承仓库可见性（本仓库为 public）。若显示为 private，在 GitHub 个人页 `Packages → music-mp3-api → Package settings` 改为 Public 并关联仓库。
 

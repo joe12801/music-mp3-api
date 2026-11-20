@@ -5,6 +5,8 @@ services:
     # 用官方预构建镜像；如需本地构建，把 image 换成 build: .
     image: ghcr.io/joe12801/music-mp3-api:1.2.0
     # image: joe1280/music-mp3-api:1.2.0
+    # 国内服务器可换成阿里云 ACR（华南3·广州）：
+    # image: registry.cn-guangzhou.aliyuncs.com/joe1280/music-mp3-api:1.2.0
     container_name: music-mp3-api
     restart: unless-stopped
     ports:
