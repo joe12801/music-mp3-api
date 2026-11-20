@@ -1,0 +1,15 @@
+# 统一换行符，避免 Windows 下 CRLF 把 shell 脚本 / CI 弄坏
+* text=auto eol=lf
+
+*.bat text eol=crlf
+*.cmd text eol=crlf
+*.ps1 text eol=crlf
+
+# 二进制资源不做文本转换
+*.mp3 binary
+*.png  binary
+*.jpg  binary
+*.ico  binary
+*.msi  binary
+*.exe  binary
+*.zip  binary

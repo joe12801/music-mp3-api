@@ -1,0 +1,825 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Music MP3 API · 演示台</title>
+<style>
+  :root {
+    --bg: #f6f7fb;
+    --surface: #ffffff;
+    --surface-2: #f0f2f8;
+    --border: #e3e7f0;
+    --text: #1d2333;
+    --muted: #6b7488;
+    --primary: #3b5bdb;
+    --primary-soft: #e8edff;
+    --accent: #0f9d76;
+    --danger: #d64550;
+    --shadow: 0 2px 12px rgba(28, 38, 70, .07);
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font: 14px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei", "PingFang SC", sans-serif;
+  }
+  a { color: var(--primary); text-decoration: none; }
+  .wrap { max-width: 1120px; margin: 0 auto; padding: 28px 20px 60px; }
+  header.top { display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; flex-wrap: wrap; margin-bottom: 24px; }
+  h1 { font-size: 24px; margin: 0 0 4px; letter-spacing: -.4px; }
+  .sub { color: var(--muted); font-size: 13px; }
+  .top-right { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .pill { display: inline-flex; align-items: center; gap: 6px; padding: 5px 11px; border-radius: 999px; background: var(--surface); border: 1px solid var(--border); font-size: 12px; color: var(--muted); }
+  .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); }
+  .dot.bad { background: var(--danger); }
+  input, select, button { font: inherit; color: inherit; }
+  input[type=text], input[type=password], select {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 9px;
+    padding: 9px 12px; outline: none; transition: border-color .15s, box-shadow .15s;
+  }
+  input[type=text]:focus, input[type=password]:focus, select:focus { border-color: var(--primary); box-shadow: 0 0 0 3px var(--primary-soft); }
+  button { cursor: pointer; border: 1px solid var(--border); background: var(--surface); border-radius: 9px; padding: 9px 14px; transition: .15s; }
+  button:hover { border-color: var(--primary); color: var(--primary); }
+  button.primary { background: var(--primary); border-color: var(--primary); color: #fff; }
+  button.primary:hover { background: #2f4bc4; color: #fff; }
+  button:disabled { opacity: .5; cursor: not-allowed; }
+  button.ghost { background: transparent; }
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; box-shadow: var(--shadow); padding: 20px; margin-bottom: 18px; }
+  .card h2 { font-size: 15px; margin: 0 0 14px; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+  .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+  .grow { flex: 1 1 280px; }
+  .hint { color: var(--muted); font-size: 12px; margin-top: 10px; }
+  .toggle { display: inline-flex; align-items: center; gap: 7px; color: var(--muted); font-size: 13px; cursor: pointer; user-select: none; }
+  .toggle input { accent-color: var(--primary); }
+  .results { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 14px; margin-top: 4px; }
+  .item { border: 1px solid var(--border); border-radius: 12px; overflow: hidden; background: var(--surface-2); display: flex; flex-direction: column; }
+  .item .thumb { width: 100%; aspect-ratio: 16/9; object-fit: cover; background: #dfe4f0; display: block; }
+  .item .body { padding: 11px 12px 12px; display: flex; flex-direction: column; gap: 8px; flex: 1; }
+  .item .title { font-weight: 600; font-size: 13px; line-height: 1.45; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .item .meta { color: var(--muted); font-size: 12px; }
+  .item .actions { display: flex; gap: 8px; margin-top: auto; }
+  .item .actions button { flex: 1; padding: 7px 8px; font-size: 12px; }
+  .badge { display: inline-block; font-size: 11px; padding: 2px 8px; border-radius: 999px; background: var(--primary-soft); color: var(--primary); }
+  .badge.hit { background: #e2f6ef; color: var(--accent); }
+  .badge.miss { background: #fff2e0; color: #b26a00; }
+  .player { position: sticky; bottom: 14px; z-index: 10; background: var(--surface); border: 1px solid var(--border); border-radius: 14px; box-shadow: 0 8px 30px rgba(28,38,70,.14); padding: 14px 18px; display: none; grid-template-columns: minmax(0, 1fr) minmax(280px, 360px); gap: 16px; align-items: start; }
+  .player.active { display: grid; }
+  .player-mini { position: fixed; right: 14px; bottom: 14px; z-index: 11; display: none; align-items: center; gap: 8px; max-width: calc(100vw - 28px); padding: 8px 12px; border-radius: 999px; background: var(--primary); border-color: var(--primary); color: #fff; box-shadow: 0 6px 24px rgba(59,91,219,.28); font-size: 12px; }
+  .player-mini.visible { display: inline-flex; }
+  .player-mini:hover { background: #2f4bc4; border-color: #2f4bc4; color: #fff; }
+  .player-mini .mini-title { max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .player-left { min-width: 0; }
+  .player .now { display: flex; justify-content: space-between; gap: 12px; align-items: center; margin-bottom: 10px; flex-wrap: wrap; }
+  .player .now strong { font-size: 14px; }
+  audio { width: 100%; height: 38px; }
+  .progress { height: 5px; border-radius: 999px; background: var(--surface-2); overflow: hidden; margin-top: 10px; display: none; }
+  .progress > div { height: 100%; width: 0; background: var(--primary); transition: width .3s; }
+  .lyrics-panel { border-left: 1px solid var(--border); padding-left: 16px; min-width: 0; }
+  .lyrics-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 6px; font-size: 12px; color: var(--muted); }
+  .lyrics-head select { padding: 4px 8px; border-radius: 7px; font-size: 12px; }
+  .lyric-state { font-size: 11px; color: var(--muted); white-space: nowrap; max-width: 190px; overflow: hidden; text-overflow: ellipsis; }
+  .lyrics-box { height: 132px; overflow-y: auto; padding-right: 4px; scrollbar-width: thin; }
+  .lyric-line { position: relative; padding: 4px 9px; border-radius: 7px; color: var(--muted); font-size: 12.5px; line-height: 1.6; cursor: pointer; overflow: hidden; transition: background .2s, color .2s; }
+  .lyric-line:hover { background: var(--surface-2); }
+  .lyric-line.active { color: var(--primary); font-weight: 600; background: var(--primary-soft); }
+  .lyric-line .fill { position: absolute; inset: 0 auto 0 0; width: var(--p, 0%); background: rgba(59,91,219,.12); pointer-events: none; transition: width .15s linear; }
+  .lyric-line > span:last-child { position: relative; z-index: 1; }
+  .lyric-empty { color: var(--muted); font-size: 12.5px; text-align: center; padding: 42px 8px; line-height: 1.6; }
+  table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+  th, td { text-align: left; padding: 9px 8px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+  th { color: var(--muted); font-weight: 500; }
+  tr:last-child td { border-bottom: 0; }
+  .cache-list { max-height: 260px; overflow: auto; }
+  .pager { display: flex; align-items: center; justify-content: flex-end; gap: 8px; flex-wrap: wrap; margin-top: 10px; font-size: 12px; color: var(--muted); }
+  .pager select { padding: 4px 8px; border-radius: 7px; font-size: 12px; }
+  .pager button { padding: 5px 10px; font-size: 12px; }
+  .pager .page-info { white-space: nowrap; }
+  .empty { color: var(--muted); text-align: center; padding: 24px 0; font-size: 13px; }
+  .stats { display: flex; gap: 22px; flex-wrap: wrap; margin-bottom: 14px; }
+  .stat { min-width: 90px; }
+  .stat .v { font-size: 20px; font-weight: 650; }
+  .stat .k { color: var(--muted); font-size: 12px; }
+  footer { color: var(--muted); font-size: 12px; text-align: center; margin-top: 26px; line-height: 1.8; }
+  code { background: var(--surface-2); padding: 1px 6px; border-radius: 5px; font-size: 12px; }
+  .toast { position: fixed; right: 20px; bottom: 20px; z-index: 50; display: flex; flex-direction: column; gap: 8px; }
+  .toast div { background: #26304a; color: #fff; padding: 10px 16px; border-radius: 10px; font-size: 13px; box-shadow: 0 6px 24px rgba(0,0,0,.2); max-width: 340px; }
+  .toast div.err { background: #a5323d; }
+  .selftest { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 10px; margin-top: 12px; }
+  .test-row { border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; background: var(--surface-2); }
+  .test-row .t { display: flex; justify-content: space-between; gap: 8px; align-items: center; font-size: 12.5px; font-weight: 600; }
+  .test-row .d { color: var(--muted); font-size: 12px; margin-top: 6px; word-break: break-word; line-height: 1.5; }
+  .s { font-size: 11px; padding: 2px 8px; border-radius: 999px; white-space: nowrap; }
+  .s.ok { background: #e2f6ef; color: var(--accent); }
+  .s.bad { background: #fde8ea; color: var(--danger); }
+  .s.wait { background: var(--primary-soft); color: var(--primary); }
+  .quick { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 14px; }
+  @media (max-width: 860px) {
+    .player { grid-template-columns: 1fr; }
+    .lyrics-panel { border-left: 0; border-top: 1px solid var(--border); padding-left: 0; padding-top: 12px; }
+    .lyrics-box { height: 108px; }
+  }
+  @media (max-width: 620px) {
+    .wrap { padding: 18px 12px 70px; } .card { padding: 15px; }
+    .row > input[type=text] { flex-basis: 100%; }
+    .row > select, .row > button.primary { flex: 1 1 120px; }
+    .selftest { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div>
+      <h1>Music MP3 API</h1>
+      <div class="sub">yt-dlp 下载 · ffmpeg 提取音频 · 本地缓存复用 · 播放同步歌词 · <a href="/docs" target="_blank">接口文档</a></div>
+    </div>
+    <div class="top-right">
+      <span class="pill"><span class="dot" id="statusDot"></span><span id="statusText">检查服务中…</span></span>
+      <input type="password" id="apiKey" placeholder="API Key（远程访问必填）" style="width:170px" />
+    </div>
+  </header>
+
+  <div id="keyBanner" style="display:none;margin:0 0 14px;padding:12px 14px;border:1px solid #f3c6c6;background:#fff4f4;color:#8c2d2d;border-radius:10px;font-size:13px;align-items:center;gap:10px;flex-wrap:wrap">
+    <strong style="font-size:14px">需要 API Key</strong>
+    <span style="flex:1;min-width:220px">当前服务已启用鉴权。请在右上角填入密钥，或从部署方提供的直达链接 <code>/?key=…</code> 进入（会自动填好并记住）。</span>
+    <button type="button" id="pasteKey">从剪贴板粘贴</button>
+  </div>
+
+  <section class="card">
+    <h2>搜索音乐 <span class="sub" id="backendInfo"></span></h2>
+    <div class="row">
+      <input type="text" class="grow" id="query" placeholder="输入歌名 / 歌手 / 关键词，例如：周杰伦 晴天" />
+      <select id="limit">
+        <option value="6">6 条</option>
+        <option value="8" selected>8 条</option>
+        <option value="12">12 条</option>
+        <option value="20">20 条</option>
+      </select>
+      <select id="bitrate">
+        <option value="128">128 kbps</option>
+        <option value="192" selected>192 kbps</option>
+        <option value="256">256 kbps</option>
+        <option value="320">320 kbps</option>
+      </select>
+      <label class="toggle"><input type="checkbox" id="jobMode" /> 后台任务模式</label>
+      <button class="primary" id="searchBtn">搜索</button>
+    </div>
+    <div class="hint">后台任务模式适合首次下载较慢的场景：创建任务后轮询进度，完成后自动播放。直接模式会等待下载完成后返回音频。</div>
+    <div class="results" id="results"></div>
+    <div class="empty" id="resultsEmpty">输入关键词开始搜索。</div>
+  </section>
+
+  <section class="card">
+    <h2>接口自测 <span class="row"><button class="ghost" id="runTest">一键跑全部</button></span></h2>
+    <div class="hint">逐个请求真实接口，显示 HTTP 状态、耗时与结果摘要。自测固定用已缓存的 128 kbps，音频项带 Range 只取 1 KB，几秒内跑完。最后一项验证 YouTube 新视频能否经 Cloudflare WARP 出口正常解析。</div>
+    <div class="selftest" id="testGrid"></div>
+    <div class="quick">
+      <button id="playDemo">播放缓存示例（保证成功）</button>
+      <button id="dlLocal">下载《真的爱你》(YouTube MV)</button>
+      <button id="testBlocked">验证 WARP 出口</button>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>本地缓存 <span class="row"><button class="ghost" id="refreshCache">刷新</button><button class="ghost" id="clearCache">清空</button></span></h2>
+    <div class="stats" id="cacheStats"></div>
+    <div class="cache-list" id="cacheList"></div>
+    <div class="pager" id="cachePager"></div>
+  </section>
+
+  <div class="player" id="player">
+    <div class="player-left">
+      <div class="now">
+        <div><strong id="nowTitle">未播放</strong> <span class="sub" id="nowMeta"></span></div>
+        <div class="row"><span id="cacheBadge"></span><a id="dlLink" href="#" download style="display:none">下载音频</a><button class="ghost" id="playerToggle" title="收起播放器">收起 ▾</button></div>
+      </div>
+      <audio id="audio" controls preload="none"></audio>
+      <div class="progress" id="progress"><div id="progressBar"></div></div>
+    </div>
+    <div class="lyrics-panel">
+      <div class="lyrics-head">
+        <span>同步歌词</span>
+        <span class="row" style="gap:6px">
+          <select id="lyricLang" title="歌词语言">
+            <option value="auto">自动</option>
+            <option value="zh-Hans">简体中文</option>
+            <option value="zh-Hant">繁体中文</option>
+            <option value="en">English</option>
+            <option value="ja">日本語</option>
+            <option value="ko">한국어</option>
+          </select>
+          <span class="lyric-state" id="lyricState">等待播放</span>
+        </span>
+      </div>
+      <div class="lyrics-box" id="lyrics"><div class="lyric-empty">播放后自动加载同步歌词<br />点击歌词可跳转到对应时间</div></div>
+    </div>
+  </div>
+
+  <footer>
+    仅供个人学习与自用，请仅下载你拥有版权或已获授权的内容，遵守 YouTube 服务条款与所在地法律法规，勿用于公开分发或商业用途。<br />
+    接口可直接调用：<code>GET /api/music?q=关键词&amp;bitrate=192</code> · <code>GET /api/search?q=关键词</code>
+  </footer>
+</div>
+<div class="toast" id="toast"></div>
+<button class="player-mini" id="playerMini" title="展开播放器"><span aria-hidden="true">♪</span><span class="mini-title" id="miniTitle">播放器</span><span aria-hidden="true">▴</span></button>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const state = {
+  results: [], cacheKey: null,
+  lyrics: [], lyricIndex: -1, lyricVideoId: null,
+  lyricLang: 'auto', lyricLoadedKey: '', lyricReq: 0,
+  lyricCache: new Map(),
+  playerHadPlayback: false, playerHasTrack: false, playerCollapsed: false,
+  cacheEntries: [], cachePage: 1, cachePageSize: 10, cacheAll: false,
+};
+
+// 浏览器要求 fetch 的请求头值必须是 ISO-8859-1 字节串；若粘贴 API Key 时
+// 混入中文 / 全角 / 零宽字符，会直接抛 "String contains non ISO-8859-1 code point"。
+// 这里从任意输入中提取最长的 URL-safe token，自动忽略说明文字与非法字符。
+function cleanKey(raw) {
+  const s = String(raw == null ? '' : raw).replace(/[\u200B-\u200D\uFEFF]/g, '');
+  let best = '';
+  for (const part of s.match(/[A-Za-z0-9_-]+/g) || []) {
+    if (part.length > best.length) best = part;
+  }
+  return best;
+}
+function currentKey() { return cleanKey($('apiKey').value); }
+// 兜底：任何请求头都只允许可打印 ASCII，避免个别分支漏网导致整个 fetch 崩溃。
+function safeHeaders(obj) {
+  const out = {};
+  for (const [k, v] of Object.entries(obj || {})) {
+    const s = String(v);
+    if (/^[\x20-\x7E]*$/.test(s)) out[k] = s;
+    else console.warn('[music-api] 跳过含非 ASCII 字符的请求头：' + k);
+  }
+  return out;
+}
+function keyParam(extra) {
+  const p = new URLSearchParams(extra || {});
+  const key = currentKey();
+  if (key) p.set('api_key', key);
+  const s = p.toString();
+  return s ? '?' + s : '';
+}
+function headers() {
+  const key = currentKey();
+  return key ? { 'X-API-Key': key } : {};
+}
+function toast(msg, isErr) {
+  const el = document.createElement('div');
+  el.textContent = msg;
+  if (isErr) el.className = 'err';
+  $('toast').appendChild(el);
+  setTimeout(() => el.remove(), 4200);
+}
+function fmtDur(s) {
+  if (!s && s !== 0) return '--:--';
+  s = Math.round(s);
+  return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0');
+}
+function fmtSize(b) { return (b / 1024 / 1024).toFixed(1) + ' MB'; }
+// 缓存上限自适应单位：>= 1024 MB 时显示 GB（如 500 GB），避免一长串数字
+function fmtLimit(mb) {
+  if (mb == null) return '不限';
+  if (mb >= 1024) {
+    const gb = mb / 1024;
+    return (Number.isInteger(gb) ? gb : gb.toFixed(1)) + ' GB';
+  }
+  return mb + ' MB';
+}
+function esc(s) {
+  return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+async function api(path, opts) {
+  let res;
+  try {
+    res = await fetch(path, { ...opts, headers: safeHeaders({ ...headers(), ...(opts && opts.headers) }) });
+  } catch (e) {
+    if (/ISO-8859-1|headers/i.test(e.message)) {
+      throw new Error('请求头含非法字符，请检查 API Key 是否粘入了中文或多余内容（已自动清洗，请重试）');
+    }
+    throw new Error('网络请求失败：' + e.message);
+  }
+  if (!res.ok) {
+    let msg = res.status + ' ' + res.statusText;
+    try { const j = await res.json(); msg = j.detail || j.error || msg; } catch (e) {}
+    throw new Error(msg);
+  }
+  return res;
+}
+
+let keyRequired = false;
+function syncKeyBanner() {
+  const el = $('keyBanner');
+  if (el) el.style.display = (keyRequired && !currentKey()) ? 'flex' : 'none';
+}
+
+async function loadHealth() {
+  try {
+    const r = await api('/api/health');
+    const j = await r.json();
+    keyRequired = !!(j.config && j.config.api_key_required);
+    syncKeyBanner();
+    $('statusDot').className = 'dot';
+    $('statusText').textContent = '服务在线';
+    $('backendInfo').textContent = `后端 ${j.download.backend} · yt-dlp ${j.download.ytdlp_version} · ${j.download.ffmpeg_available ? 'MP3 转码可用' : '原始音频流'}`;
+  } catch (e) {
+    $('statusDot').className = 'dot bad';
+    $('statusText').textContent = '服务不可用';
+    toast('健康检查失败：' + e.message, true);
+  }
+}
+
+async function doSearch() {
+  const q = $('query').value.trim();
+  if (!q) { toast('请输入搜索关键词', true); return; }
+  const btn = $('searchBtn');
+  btn.disabled = true; btn.textContent = '搜索中…';
+  $('resultsEmpty').style.display = 'none';
+  try {
+    const r = await api('/api/search' + keyParam({ q, limit: $('limit').value }));
+    const j = await r.json();
+    state.results = j.results || [];
+    renderResults();
+    if (!state.results.length) toast('没有找到结果');
+  } catch (e) { toast('搜索失败：' + e.message, true); }
+  finally { btn.disabled = false; btn.textContent = '搜索'; }
+}
+
+function targetOf(item) {
+  if (item.id) return { video_id: item.id };
+  if (item.webpage_url) return { url: item.webpage_url };
+  return null;
+}
+
+function renderResults() {
+  const box = $('results');
+  box.innerHTML = '';
+  $('resultsEmpty').style.display = state.results.length ? 'none' : 'block';
+  $('resultsEmpty').textContent = state.results.length ? '' : '没有找到结果，换个关键词试试。';
+  state.results.forEach((item, i) => {
+    const t = targetOf(item);
+    if (!t) return;
+    const div = document.createElement('div');
+    div.className = 'item';
+    div.innerHTML = `
+      <img class="thumb" src="${esc(item.thumbnail || '')}" alt="" loading="lazy" onerror="this.style.display='none'" />
+      <div class="body">
+        <div class="title" title="${esc(item.title)}">${esc(item.title)}</div>
+        <div class="meta">${esc(item.channel || '未知频道')} · ${fmtDur(item.duration)}</div>
+        <div class="actions">
+          <button class="primary" data-act="play" data-i="${i}">播放</button>
+          <button data-act="dl" data-i="${i}">下载</button>
+        </div>
+      </div>`;
+    box.appendChild(div);
+  });
+  box.querySelectorAll('button').forEach(b => {
+    b.onclick = () => {
+      const item = state.results[Number(b.dataset.i)];
+      if (b.dataset.act === 'dl') directDownload(item);
+      else play(item);
+    };
+  });
+}
+
+function syncPlayer() {
+  $('player').classList.toggle('active', state.playerHasTrack && !state.playerCollapsed);
+  $('playerMini').classList.toggle('visible', state.playerHasTrack && state.playerCollapsed);
+}
+function expandPlayer() { state.playerCollapsed = false; syncPlayer(); }
+function collapsePlayer() { state.playerCollapsed = true; syncPlayer(); }
+function showPlayer() { state.playerHasTrack = true; expandPlayer(); }
+function dismissPlayer() { state.playerHasTrack = false; state.playerCollapsed = false; syncPlayer(); }
+
+function setNow(item, badge, url) {
+  showPlayer();
+  state.playerHadPlayback = false;
+  $('miniTitle').textContent = item.title || '播放器';
+  $('nowTitle').textContent = item.title || '音频';
+  $('nowMeta').textContent = `${item.channel || ''} · ${fmtDur(item.duration)} · ${$('bitrate').value} kbps`;
+  $('cacheBadge').innerHTML = badge ? `<span class="badge ${badge.toLowerCase()}">${badge}</span>` : '';
+  $('dlLink').href = url + (url.includes('?') ? '&' : '?') + 'download=true';
+  $('dlLink').style.display = 'inline';
+  loadLyrics(item);
+}
+function showProgress(pct, msg) {
+  $('progress').style.display = 'block';
+  $('progressBar').style.width = Math.max(2, pct) + '%';
+  if (msg) $('nowMeta').textContent = msg;
+}
+function hideProgress() { $('progress').style.display = 'none'; $('progressBar').style.width = '0'; }
+
+// ---------------------------------------------------------------- 同步歌词
+function setLyricState(text) { $('lyricState').textContent = text; }
+function clearLyrics(message) {
+  state.lyrics = [];
+  state.lyricIndex = -1;
+  $('lyrics').innerHTML = `<div class="lyric-empty">${esc(message)}</div>`;
+}
+function updateLyricFill() {
+  const idx = state.lyricIndex;
+  if (idx < 0 || !state.lyrics[idx]) return;
+  const line = state.lyrics[idx];
+  const node = $('lyrics').querySelector(`.lyric-line[data-i="${idx}"]`);
+  if (!node) return;
+  const t = $('audio').currentTime || 0;
+  const ratio = line.end > line.start ? Math.min(1, Math.max(0, (t - line.start) / (line.end - line.start))) : 0;
+  node.style.setProperty('--p', (ratio * 100).toFixed(1) + '%');
+}
+// 只在当前行脱离可视区时滚动，并把当前行贴到可视区底部附近，
+// 这样上一句仍留在上方；不用 smooth，避免手机上滚动动画追着高亮跑。
+function keepLyricVisible() {
+  const idx = state.lyricIndex;
+  if (idx < 0) return;
+  const box = $('lyrics');
+  const node = box.querySelector(`.lyric-line[data-i="${idx}"]`);
+  if (!node) return;
+  const boxRect = box.getBoundingClientRect();
+  const nodeRect = node.getBoundingClientRect();
+  const top = nodeRect.top - boxRect.top + box.scrollTop;
+  const bottom = top + nodeRect.height;
+  const pad = 6;
+  if (top >= box.scrollTop + pad && bottom <= box.scrollTop + box.clientHeight - pad) return;
+  box.scrollTop = Math.max(0, bottom - box.clientHeight + 24);
+}
+function syncLyrics() {
+  const lines = state.lyrics;
+  const audio = $('audio');
+  if (!lines.length || !Number.isFinite(audio.currentTime)) return;
+  const t = audio.currentTime;
+  let idx = -1, lo = 0, hi = lines.length - 1;
+  while (lo <= hi) {
+    const mid = (lo + hi) >> 1;
+    if (lines[mid].start <= t) { idx = mid; lo = mid + 1; }
+    else { hi = mid - 1; }
+  }
+  // 超过当前行结束时间 2 秒仍无下一句时，视为间奏，不高亮。
+  if (idx < 0 || t > lines[idx].end + 2) idx = -1;
+  if (idx === state.lyricIndex) { updateLyricFill(); return; }
+  state.lyricIndex = idx;
+  const nodes = $('lyrics').querySelectorAll('.lyric-line');
+  nodes.forEach((n, i) => n.classList.toggle('active', i === idx));
+  keepLyricVisible();
+  updateLyricFill();
+}
+function renderLyrics(payload) {
+  state.lyrics = Array.isArray(payload.lines) ? payload.lines : [];
+  state.lyricIndex = -1;
+  const box = $('lyrics');
+  if (!state.lyrics.length) {
+    clearLyrics('该视频暂无可用字幕歌词');
+    setLyricState(payload.available === false ? '无字幕' : '无歌词');
+    return;
+  }
+  box.innerHTML = state.lyrics.map((l, i) => `
+    <div class="lyric-line" data-i="${i}" data-t="${Number(l.start) || 0}">
+      <span class="fill"></span><span>${esc(l.text)}</span>
+    </div>`).join('');
+  box.querySelectorAll('.lyric-line').forEach(el => {
+    el.onclick = () => {
+      $('audio').currentTime = Number(el.dataset.t) || 0;
+      $('audio').play().catch(() => {});
+    };
+  });
+  const label = payload.language_label || payload.language || '字幕';
+  let source = '';
+  if (payload.source === 'auto') source = ' · 自动字幕';
+  else if (payload.source === 'manual') source = ' · 人工字幕';
+  else if (payload.source === 'lrclib') {
+    const track = payload.external && payload.external.track;
+    source = ' · LRCLIB' + (track ? '：' + track : '');
+  }
+  setLyricState(`${label} · ${state.lyrics.length} 行${source}`);
+  syncLyrics();
+}
+async function loadLyrics(item, force) {
+  const vid = item && (item.id || item.video_id);
+  const lang = $('lyricLang').value || 'auto';
+  if (!vid) {
+    state.lyricVideoId = null;
+    clearLyrics('当前曲目没有可识别的视频 ID，无法加载歌词');
+    setLyricState('不可用');
+    return;
+  }
+  const cacheKey = vid + ':' + lang;
+  state.lyricVideoId = vid;
+  state.lyricLang = lang;
+  if (!force && state.lyricLoadedKey === cacheKey) { syncLyrics(); return; }
+  if (state.lyricCache.has(cacheKey)) {
+    renderLyrics(state.lyricCache.get(cacheKey));
+    return;
+  }
+  const reqId = ++state.lyricReq;
+  clearLyrics('正在加载同步歌词…');
+  setLyricState('加载中');
+  try {
+    const j = await (await api('/api/lyrics' + keyParam({ video_id: vid, lang }))).json();
+    if (reqId !== state.lyricReq) return;
+    const payload = { ...j, _key: cacheKey };
+    state.lyricCache.set(cacheKey, payload);
+    renderLyrics(payload);
+  } catch (e) {
+    if (reqId !== state.lyricReq) return;
+    clearLyrics('歌词加载失败：' + e.message);
+    setLyricState('失败');
+  }
+}
+
+function directDownload(item) {
+  const t = targetOf(item);
+  const url = '/api/music' + keyParam({ ...t, bitrate: $('bitrate').value, download: 'true' });
+  window.location.href = url;
+}
+
+async function probeCache(item) {
+  if (!item.id) return null;
+  try {
+    const j = await (await api('/api/cache/lookup' + keyParam({ video_id: item.id, bitrate: $('bitrate').value }))).json();
+    return j.hit ? 'HIT' : 'MISS';
+  } catch (e) { return null; }
+}
+
+async function play(item) {
+  const t = targetOf(item);
+  const br = $('bitrate').value;
+  hideProgress();
+  const badge = await probeCache(item);
+  if ($('jobMode').checked) { await playViaJob(item, t, br); return; }
+  const url = '/api/music' + keyParam({ ...t, bitrate: br });
+  setNow(item, badge, url);
+  const audio = $('audio');
+  audio.src = url;
+  try { await audio.play(); } catch (e) { toast('已准备音频，点击播放器开始', false); }
+  setTimeout(loadCache, 2500);
+}
+
+async function playViaJob(item, t, br) {
+  showProgress(0, '创建后台任务…');
+  setNow(item, null, '#');
+  try {
+    const r = await api('/api/jobs' + keyParam({}), {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ...t, bitrate: Number(br) })
+    });
+    const job = await r.json();
+    const id = job.job_id;
+    const deadline = Date.now() + 10 * 60 * 1000;
+    while (Date.now() < deadline) {
+      await new Promise(res => setTimeout(res, 900));
+      const s = await (await api('/api/jobs/' + id + keyParam({}))).json();
+      showProgress(s.progress || 0, s.message || '处理中');
+      if (s.status === 'done') {
+        const url = '/api/jobs/' + id + '/download' + keyParam({});
+        setNow(item, s.result.cache_hit ? 'HIT' : 'MISS', url);
+        $('audio').src = url;
+        await $('audio').play().catch(() => {});
+        hideProgress(); loadCache();
+        return;
+      }
+      if (s.status === 'error') throw new Error(s.error || '任务失败');
+    }
+    throw new Error('任务超时');
+  } catch (e) {
+    hideProgress(); toast('后台任务失败：' + e.message, true);
+  }
+}
+
+function renderCachePager(totalPages, start, count) {
+  const total = state.cacheEntries.length;
+  const pager = $('cachePager');
+  const sizeVal = state.cacheAll ? '0' : String(state.cachePageSize);
+  const selector = `<span>每页</span><select id="cachePageSize">
+    <option value="10"${sizeVal === '10' ? ' selected' : ''}>10</option>
+    <option value="20"${sizeVal === '20' ? ' selected' : ''}>20</option>
+    <option value="50"${sizeVal === '50' ? ' selected' : ''}>50</option>
+    <option value="0"${sizeVal === '0' ? ' selected' : ''}>全部</option>
+  </select>`;
+  if (totalPages <= 1) {
+    pager.innerHTML = selector + `<span class="page-info">共 ${total} 条</span>`;
+  } else {
+    pager.innerHTML = selector +
+      `<button id="cachePrev"${state.cachePage <= 1 ? ' disabled' : ''}>上一页</button>` +
+      `<span class="page-info">${state.cachePage} / ${totalPages} · 显示 ${start + 1}-${start + count} / ${total}</span>` +
+      `<button id="cacheNext"${state.cachePage >= totalPages ? ' disabled' : ''}>下一页</button>`;
+    $('cachePrev').onclick = () => { state.cachePage--; renderCachePage(); };
+    $('cacheNext').onclick = () => { state.cachePage++; renderCachePage(); };
+  }
+  $('cachePageSize').onchange = (e) => {
+    const v = Number(e.target.value);
+    state.cacheAll = v === 0;
+    state.cachePageSize = v > 0 ? v : Math.max(1, state.cacheEntries.length);
+    state.cachePage = 1;
+    renderCachePage();
+  };
+}
+function renderCachePage() {
+  const list = $('cacheList');
+  const entries = state.cacheEntries;
+  if (!entries.length) {
+    list.innerHTML = '<div class="empty">缓存为空，播放一首歌后会自动写入。</div>';
+    $('cachePager').innerHTML = '';
+    return;
+  }
+  const totalPages = Math.max(1, Math.ceil(entries.length / state.cachePageSize));
+  state.cachePage = Math.min(Math.max(1, state.cachePage), totalPages);
+  const start = (state.cachePage - 1) * state.cachePageSize;
+  const pageItems = entries.slice(start, start + state.cachePageSize);
+  list.innerHTML = '<table><thead><tr><th>标题</th><th>码率</th><th>大小</th><th>最近使用</th><th></th></tr></thead><tbody>' +
+    pageItems.map(e => `<tr>
+      <td>${esc(e.title || e.video_id)}</td>
+      <td>${e.bitrate} k / ${esc(e.codec)}${esc(e.ext)}</td>
+      <td>${fmtSize(e.size)}</td>
+      <td>${new Date(e.last_access * 1000).toLocaleString('zh-CN', { hour12: false })}</td>
+      <td><button data-key="${esc(e.key)}" data-id="${esc(e.video_id)}">播放</button></td>
+    </tr>`).join('') + '</tbody></table>';
+  list.querySelectorAll('button[data-id]').forEach(b => {
+    b.onclick = () => {
+      const item = { id: b.dataset.id, title: b.closest('tr').children[0].textContent, channel: '本地缓存', duration: null };
+      const url = '/api/music' + keyParam({ video_id: b.dataset.id, bitrate: $('bitrate').value });
+      setNow(item, 'HIT', url);
+      $('audio').src = url; $('audio').play().catch(() => {});
+    };
+  });
+  renderCachePager(totalPages, start, pageItems.length);
+}
+async function loadCache() {
+  try {
+    const j = await (await api('/api/cache' + keyParam({}))).json();
+    $('cacheStats').innerHTML = `
+      <div class="stat"><div class="v">${j.count}</div><div class="k">缓存曲目</div></div>
+      <div class="stat"><div class="v">${j.total_mb}</div><div class="k">占用 MB</div></div>
+      <div class="stat"><div class="v">${fmtLimit(j.limit_mb)}</div><div class="k">上限</div></div>
+      <div class="stat"><div class="v">${j.ttl_seconds ? Math.round(j.ttl_seconds / 86400) + ' 天' : '永久'}</div><div class="k">有效期</div></div>`;
+    state.cacheEntries = Array.isArray(j.entries) ? j.entries : [];
+    renderCachePage();
+  } catch (e) { toast('读取缓存失败：' + e.message, true); }
+}
+
+$('searchBtn').onclick = doSearch;
+$('query').addEventListener('keydown', e => { if (e.key === 'Enter') doSearch(); });
+$('refreshCache').onclick = () => { state.cachePage = 1; loadCache(); };
+$('clearCache').onclick = async () => {
+  if (!confirm('确定清空所有本地缓存音频吗？')) return;
+  try {
+    const j = await (await api('/api/cache' + keyParam({}), { method: 'DELETE' })).json();
+    toast('已清理 ' + j.removed + ' 条缓存'); state.cachePage = 1; loadCache();
+  } catch (e) { toast('清理失败：' + e.message, true); }
+};
+// 支持 ?key=xxx 直达链接：自动填入并记住，随后从地址栏抹掉密钥避免泄露
+(function () {
+  const params = new URLSearchParams(location.search);
+  const fromUrl = params.get('key') || params.get('api_key');
+  const raw = fromUrl || localStorage.getItem('music_api_key') || '';
+  const key = cleanKey(raw);
+  $('apiKey').value = key;
+  localStorage.setItem('music_api_key', key);
+  if (fromUrl) {
+    params.delete('key'); params.delete('api_key');
+    const qs = params.toString();
+    history.replaceState(null, '', location.pathname + (qs ? '?' + qs : '') + location.hash);
+  }
+  if (key !== raw) toast('已自动提取 API Key（忽略了中文 / 多余字符），请核对', true);
+})();
+$('apiKey').addEventListener('input', () => {
+  // 不回写输入框，避免逐字输入时被清洗逻辑打断；落盘与请求时统一清洗
+  localStorage.setItem('music_api_key', cleanKey($('apiKey').value));
+  syncKeyBanner();
+});
+$('pasteKey').onclick = async () => {
+  try {
+    const t = (await navigator.clipboard.readText()).trim();
+    if (!t) { toast('剪贴板为空，请手动粘贴', true); return; }
+    const k = cleanKey(t);
+    if (!k) { toast('剪贴板里没有找到有效的 API Key（应为一串字母数字）', true); return; }
+    $('apiKey').value = k;
+    localStorage.setItem('music_api_key', k);
+    syncKeyBanner();
+    toast(k === t ? '已填入 API Key' : '已自动提取 API Key（已忽略中文 / 多余字符）');
+    loadCache();
+  } catch (e) { toast('无法读取剪贴板，请手动粘贴：' + e.message, true); }
+};
+syncKeyBanner();
+
+// ---------------------------------------------------------------- 接口自测
+const TEST_BR = 128; // 自测固定用已缓存的 128 kbps，保证一键跑全部秒回
+const LOCAL_TRACK = '\u771f\u7684\u7231\u4f60 - Beyond (YouTube MV).mp3';
+const TESTS = [
+  { name: '健康检查', url: () => '/api/health' + keyParam({}), read: 'json',
+    fmt: (r, j) => `${j.status} · ${j.download.backend} · yt-dlp ${j.download.ytdlp_version} · ffmpeg ${j.download.ffmpeg_available ? '可用' : '缺失'}` },
+  { name: '搜索（真实 YouTube）', url: () => '/api/search' + keyParam({ q: 'Chopin Nocturne', limit: 2 }), read: 'json',
+    fmt: (r, j) => `返回 ${j.count} 条 · 首条 ${(j.results[0] || {}).channel || '-'}` },
+  { name: '元数据解析（缓存示例）', url: () => '/api/resolve' + keyParam({ video_id: 'dQw4w9WgXcQ', bitrate: TEST_BR }), read: 'json',
+    fmt: (r, j) => `${(j.video || {}).title || '-'} · 缓存 ${j.cache && j.cache.hit ? 'HIT' : 'MISS'}` },
+  { name: '缓存探测（纯本地）', url: () => '/api/cache/lookup' + keyParam({ video_id: 'dQw4w9WgXcQ', bitrate: TEST_BR }), read: 'json',
+    fmt: (r, j) => j.hit ? 'HIT · 本地已有该码率音频' : 'MISS · 未缓存' },
+  { name: '同步歌词（字幕）', url: () => '/api/lyrics' + keyParam({ video_id: 'dQw4w9WgXcQ', lang: 'auto' }), read: 'json',
+    fmt: (r, j) => `${j.line_count || 0} 行 · ${j.language_label || j.language || '无字幕'}${j.cache_hit ? ' · 缓存' : ''}` },
+  { name: '音频 Range / 206', url: () => '/api/music' + keyParam({ video_id: 'dQw4w9WgXcQ', bitrate: TEST_BR }),
+    headers: () => ({ Range: 'bytes=0-1023' }), read: 'none',
+    fmt: (r) => `${r.status} · X-Cache=${r.headers.get('X-Cache') || '-'} · ${r.headers.get('Content-Range') || ''}` },
+  { name: '异步任务（创建）', method: 'POST', headers: { 'Content-Type': 'application/json' },
+    url: () => '/api/jobs' + keyParam({}), body: () => JSON.stringify({ video_id: 'dQw4w9WgXcQ', bitrate: TEST_BR }), read: 'json',
+    fmt: (r, j) => `job ${String(j.job_id || '').slice(0, 8)}… · ${j.status}` },
+  { name: '缓存统计', url: () => '/api/cache' + keyParam({}), read: 'json',
+    fmt: (r, j) => `${j.count} 首 · ${j.total_mb} MB · 上限 ${fmtLimit(j.limit_mb)}` },
+  { name: '本地已下载 MP3', url: () => '/downloads/' + encodeURIComponent(LOCAL_TRACK) + keyParam({}), read: 'none',
+    fmt: (r) => `${r.status} · ${r.headers.get('Content-Length') || '?'} bytes` },
+  { name: 'YouTube 新视频（WARP 出口）',
+    url: () => '/api/resolve' + keyParam({ video_id: 'CtRQVrhg1HY' }), read: 'json',
+    fmt: (r, j) => `${(j.video || {}).title || '-'} · ${(j.video || {}).duration || '?'}s · 出口已切换` },
+];
+
+async function callTest(def) {
+  const t0 = performance.now();
+  const h = typeof def.headers === 'function' ? def.headers() : (def.headers || {});
+  const opts = { method: def.method || 'GET', headers: safeHeaders({ ...headers(), ...h }) };
+  if (def.body) opts.body = typeof def.body === 'function' ? def.body() : def.body;
+  let res;
+  try { res = await fetch(def.url(), opts); }
+  catch (e) { return { ok: false, status: 'ERR', ms: Math.round(performance.now() - t0), info: e.message }; }
+  const ms = Math.round(performance.now() - t0);
+  let payload = null;
+  try {
+    if (def.read === 'json') payload = await res.json();
+    else if (def.read === 'text') payload = await res.text();
+  } catch (e) {}
+  let info;
+  if (res.ok) info = def.fmt ? def.fmt(res, payload) : `${res.status} ${res.statusText}`;
+  else info = String((payload && (payload.detail || payload.error)) || `${res.status} ${res.statusText}`).slice(0, 180);
+  if (def.expectFail && !res.ok) info = '符合预期（出口风控拦截）：' + info;
+  return { ok: res.ok, status: res.status, ms, info };
+}
+
+function renderTests() {
+  $('testGrid').innerHTML = TESTS.map((d, i) => `
+    <div class="test-row">
+      <div class="t"><span>${esc(d.name)}</span><span class="s wait" id="ts${i}">待运行</span></div>
+      <div class="d" id="td${i}">—</div>
+    </div>`).join('');
+}
+
+async function runTestAt(i, all) {
+  const s = $('ts' + i), d = $('td' + i);
+  s.className = 's wait'; s.textContent = '运行中'; d.textContent = '请求中…';
+  const r = await callTest(TESTS[i]);
+  const good = TESTS[i].expectFail ? true : r.ok;
+  s.className = 's ' + (good ? 'ok' : 'bad');
+  s.textContent = `${r.status} · ${r.ms} ms`;
+  d.textContent = r.info;
+  if (!good && !all) toast(`测试失败：${TESTS[i].name}`, true);
+}
+
+async function runAllTests() {
+  const btn = $('runTest'); btn.disabled = true; btn.textContent = '测试中…';
+  renderTests();
+  for (let i = 0; i < TESTS.length; i++) await runTestAt(i, true);
+  const failed = TESTS.filter((d, i) => !d.expectFail && $('ts' + i).classList.contains('bad')).length;
+  toast(failed ? `自测完成：${failed} 项异常` : '自测完成：全部正常');
+  btn.disabled = false; btn.textContent = '一键跑全部';
+}
+
+['timeupdate', 'seeked', 'play', 'loadedmetadata'].forEach(evt => {
+  $('audio').addEventListener(evt, syncLyrics);
+});
+$('audio').addEventListener('playing', () => {
+  state.playerHadPlayback = true;
+  if (state.playerHasTrack) syncPlayer();
+});
+$('audio').addEventListener('pause', () => {
+  if (state.playerHadPlayback && !$('audio').ended) collapsePlayer();
+});
+$('audio').addEventListener('ended', () => {
+  state.playerHadPlayback = false;
+  dismissPlayer();
+});
+$('playerToggle').onclick = collapsePlayer;
+$('playerMini').onclick = expandPlayer;
+$('lyricLang').addEventListener('change', () => {
+  const item = { id: state.lyricVideoId, title: $('nowTitle').textContent };
+  loadLyrics(item, true);
+});
+
+$('runTest').onclick = runAllTests;
+$('playDemo').onclick = () => {
+  const url = '/api/music' + keyParam({ video_id: 'dQw4w9WgXcQ', bitrate: 128 });
+  setNow({ id: 'dQw4w9WgXcQ', title: 'Rick Astley - Never Gonna Give You Up', channel: '本地缓存示例', duration: 213 }, 'HIT', url);
+  $('audio').src = url;
+  $('audio').play().catch(() => toast('已准备音频，点击播放器开始'));
+  loadCache();
+};
+$('dlLocal').onclick = () => {
+  const a = document.createElement('a');
+  a.href = '/downloads/' + encodeURIComponent(LOCAL_TRACK) + keyParam({});
+  a.download = LOCAL_TRACK;
+  document.body.appendChild(a); a.click(); a.remove();
+};
+$('testBlocked').onclick = async () => { renderTests(); await runTestAt(TESTS.length - 1, false); };
+
+renderTests();
+loadHealth(); loadCache();
+</script>
+</body>
+</html>
