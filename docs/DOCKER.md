@@ -1,0 +1,105 @@
+# Docker 镜像使用与发布
+
+Music MP3 API 提供官方容器镜像，内置 **Python 3.12 + ffmpeg（libmp3lame）+ Node.js + yt-dlp / yt-dlp-ejs + PySocks**，宿主机无需安装任何依赖。镜像以非 root 用户（UID 10001）运行，并自带 `HEALTHCHECK`。
+
+## 镜像地址与标签
+
+| 仓库 | 地址 |
+| --- | --- |
+| GitHub Container Registry（GHCR） | `ghcr.io/joe12801/music-mp3-api` |
+| Docker Hub | `<你的 Docker Hub 用户名>/music-mp3-api`（发布后生效） |
+
+标签：`latest`（main 分支）、`1.2.0`（与 `app/__init__.py` 版本一致）、`sha-<短提交>`、以及打 `v*` tag 时的版本标签。CI 同时构建 **linux/amd64** 与 **linux/arm64** 两种架构，`docker pull` 会自动选匹配本机的镜像；另有 `1.2.0-arm64` 为 ARM64 单架构镜像（在 ARM64 服务器上原生构建）。
+
+```bash
+docker pull ghcr.io/joe12801/music-mp3-api:1.2.0
+docker pull ghcr.io/joe12801/music-mp3-api:latest
+```
+
+## 快速运行
+
+```bash
+docker run -d --name music-api \
+  -p 127.0.0.1:8000:8000 \
+  -e MUSIC_API_KEY=<你的 API Key> \
+  -e MUSIC_MAX_CACHE_MB=2048 \
+  -v mp3-cache:/app/data/cache \
+  -v mp3-lyrics:/app/data/lyrics \
+  ghcr.io/joe12801/music-mp3-api:1.2.0
+
+curl http://127.0.0.1:8000/api/health      # 探活无需密钥
+curl -H "X-API-Key: <你的 API Key>" "http://127.0.0.1:8000/api/search?q=Chopin&limit=3"
+```
+
+或用 [`docker-compose.yml`](../docker-compose.yml)：
+
+```bash
+cp .env.example .env     # 填 MUSIC_API_KEY / MUSIC_PROXY 等，compose 会自动读取
+docker compose up -d
+docker compose logs -f
+```
+
+> 容器内默认 `MUSIC_HOST=0.0.0.0`（必须，否则端口映射访问不到）。若改成 `--env-file .env`，请确认 `.env` 里的 `MUSIC_HOST` 不是 `127.0.0.1`——环境变量优先级更高。
+
+## 数据与权限
+
+- 持久化目录：`/app/data/cache`（音频缓存）、`/app/data/lyrics`（歌词缓存）。镜像声明为 `VOLUME`，建议用命名卷或 bind mount。
+- 进程用户是 UID/GID **10001**。用 bind mount 时，先让宿主目录可写：
+  ```bash
+  sudo mkdir -p ./data/cache ./data/lyrics
+  sudo chown -R 10001:10001 ./data
+  ```
+- 需要登录态时**只读挂载** cookies，不要把凭据打进镜像：
+  ```bash
+  -v "$PWD/data/cookies.txt:/app/data/cookies.txt:ro"
+  -e MUSIC_COOKIES_FILE=/app/data/cookies.txt
+  ```
+- `.dockerignore` 是白名单：只把 `Dockerfile`、`requirements.txt`、`run.py`、`app/`、`static/` 送进 build context，`.env`、cookies、`*.log`、缓存音频、Chrome profile 备份都不会进入构建上下文或镜像层。
+
+## 代理（被 YouTube 风控的机房出口）
+
+容器里已经装好 `PySocks`，只需传入代理地址：
+
+```bash
+-e MUSIC_PROXY=socks5://127.0.0.1:40000
+```
+
+WARP 跑在宿主机时，容器内不能用 `127.0.0.1`（那是容器自己），要用 `host.docker.internal`（需 `--add-host=host.docker.internal:host-gateway`）或把 WARP 也容器化，见 [`../README.md`](../README.md) 的 WARP 章节。
+
+## 自己构建
+
+```bash
+docker build -t music-mp3-api:local .
+docker run --rm -p 8000:8000 music-mp3-api:local
+```
+
+多架构构建（需 buildx + qemu）：
+
+```bash
+docker buildx create --use --name mp3builder
+docker buildx build --platform linux/amd64,linux/arm64 -t <你的仓库>/music-mp3-api:dev --push .
+```
+
+## CI 自动发布
+
+仓库的 [`.github/workflows/docker.yml`](../.github/workflows/docker.yml) 在 `push main`、打 `v*` tag 或手动触发时执行：
+
+1. `smoke`：原生 amd64 构建 → 启动容器 → 检查 `/api/health`、`node --version`、`ffmpeg -version`；
+2. `publish`：QEMU + buildx 构建 amd64/arm64 → 推送 **GHCR**（用 `GITHUB_TOKEN`，无需额外凭据）；若配置了 Docker Hub secrets，同时推送 Docker Hub。
+
+**启用 Docker Hub 推送**：在 GitHub 仓库 `Settings → Secrets and variables → Actions` 添加两个 Repository secrets：
+
+| Secret | 值 |
+| --- | --- |
+| `DOCKERHUB_USERNAME` | Docker Hub 用户名 |
+| `DOCKERHUB_TOKEN` | Docker Hub **Access Token**（不是登录密码，建议只读/写范围限定到该仓库） |
+
+保存后手动触发一次 `Docker` workflow（Actions → Docker → Run workflow），或再推一次代码即可。未配置时 workflow 会打印提示并只推 GHCR，不会失败。
+
+> GHCR 包通过 `GITHUB_TOKEN` 推送，默认继承仓库可见性（本仓库为 public）。若显示为 private，在 GitHub 个人页 `Packages → music-mp3-api → Package settings` 改为 Public 并关联仓库。
+
+## 安全提醒
+
+- 容器访问日志会记录完整 URL（含 `?api_key=`），不要公开日志；对外必须设置 `MUSIC_API_KEY`。
+- 不要把镜像当作公开音乐分发服务，合规说明见仓库根目录 README 顶部。
+- 升级前先备份/保留缓存卷；`MUSIC_MAX_CACHE_MB=0` 会取消容量上限，请自行控制磁盘。

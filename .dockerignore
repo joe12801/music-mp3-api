@@ -1,0 +1,18 @@
+# 白名单：只放行构建镜像真正需要的文件。
+# 关键：.env、cookies、日志、缓存音频、Chrome 备份绝不进入 build context / 镜像。
+*
+!Dockerfile
+!.dockerignore
+!requirements.txt
+!run.py
+!app
+!app/**
+!static
+!static/**
+
+# 即使放行目录，也排除缓存与字节码
+**/__pycache__
+**/*.pyc
+**/*.pyo
+app/__pycache__
+static/__pycache__

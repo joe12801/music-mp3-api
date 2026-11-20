@@ -1,6 +1,6 @@
 # Music MP3 API
 
-> GitHub: <https://github.com/joe12801/music-mp3-api> ｜ License: [MIT](LICENSE) ｜ CI: [![CI](https://github.com/joe12801/music-mp3-api/actions/workflows/ci.yml/badge.svg)](https://github.com/joe12801/music-mp3-api/actions/workflows/ci.yml) ｜ 版本 `1.2.0`
+> GitHub: <https://github.com/joe12801/music-mp3-api> ｜ License: [MIT](LICENSE) ｜ CI: [![CI](https://github.com/joe12801/music-mp3-api/actions/workflows/ci.yml/badge.svg)](https://github.com/joe12801/music-mp3-api/actions/workflows/ci.yml) ｜ Docker: [![Docker](https://github.com/joe12801/music-mp3-api/actions/workflows/docker.yml/badge.svg)](https://github.com/joe12801/music-mp3-api/actions/workflows/docker.yml) ｜ 版本 `1.2.0`
 
 一个本地自建的音乐音频接口：用户给一个关键词或 YouTube 链接，服务用 **yt-dlp** 拉取最佳音轨、用 **ffmpeg** 提取/转码成 MP3 返回，并把结果写入本地缓存；同样的请求再次调用时直接读缓存返回，不再联网、不再转码。
 
@@ -116,19 +116,24 @@ python run.py                  :: 也可直接双击 start.bat
 
 打开 <http://127.0.0.1:8000> 用演示页，或 <http://127.0.0.1:8000/docs> 看 Swagger 文档（端口由 `MUSIC_PORT` 决定，改 `.env` 即可自定义）。
 
-**Docker（Linux 上最省事）**：镜像基于 `python:3.12-slim` 并内置 ffmpeg，宿主机只需 Docker。
+**Docker（Linux / macOS / Windows 都可用）**：官方镜像内置 Python 3.12、ffmpeg、Node.js、yt-dlp 与 PySocks，宿主机只需 Docker；CI 自动构建 **linux/amd64 + linux/arm64** 双架构并发布到 **GHCR** 与 **Docker Hub**。完整说明见 [`docs/DOCKER.md`](docs/DOCKER.md)。
 
 ```bash
-docker build -t music-mp3-api .
-docker run -d --name music-api -p 8000:8000 \
-  -e MUSIC_HOST=0.0.0.0 \
+# 直接拉官方镜像（GHCR；Docker Hub 地址为 <用户名>/music-mp3-api:1.2.0）
+docker run -d --name music-api -p 127.0.0.1:8000:8000 \
   -e MUSIC_API_KEY=<你的 API Key> \
-  -v "$PWD/data/cache:/app/data/cache" \
-  -v "$PWD/data/lyrics:/app/data/lyrics" \
-  music-mp3-api
+  -v mp3-cache:/app/data/cache \
+  -v mp3-lyrics:/app/data/lyrics \
+  ghcr.io/joe12801/music-mp3-api:1.2.0
+
+# 或用仓库自带的编排文件（自动读取同目录 .env）
+cp .env.example .env && docker compose up -d
+
+# 也可本地构建
+docker build -t music-mp3-api:local .
 ```
 
-> 容器内必须 `MUSIC_HOST=0.0.0.0`，否则端口映射访问不到。若改用 `--env-file .env`，请确认 `.env` 里的 `MUSIC_HOST` 不是 `127.0.0.1`（环境变量优先级高于 Dockerfile 默认值）。Windows 上把 `$PWD` 换成 `%CD%` 或绝对路径。
+> 容器内必须 `MUSIC_HOST=0.0.0.0`（镜像已设好），否则端口映射访问不到；用 `--env-file .env` 时确认 `.env` 里的 `MUSIC_HOST` 不是 `127.0.0.1`。镜像以 UID 10001 运行，bind mount 宿主目录需先 `chown -R 10001:10001 ./data`；`.dockerignore` 白名单确保 `.env`、cookies、`*.log`、缓存音频不会进入镜像。
 
 ## 配置项
 
@@ -511,6 +516,7 @@ music-mp3-api/
 ├── static/index.html    # 演示页（单文件、无外部依赖）
 ├── docs/
 │   ├── API.md           # 第三方接入文档（可独立交付）
+│   ├── DOCKER.md        # 镜像地址、运行、卷权限与 CI 发布说明
 │   └── openapi.json     # OpenAPI 3.1 规格快照，可导入 Postman / Apifox
 ├── deploy/                           # Linux 部署模板（详见 deploy/README.md）
 │   ├── install-linux.sh              # 一键装依赖 + venv + systemd 服务
@@ -528,7 +534,8 @@ music-mp3-api/
 │   ├── renew_cert.example.cmd         # Windows（lego）证书续期模板
 │   └── renew_cert.example.sh          # Linux（certbot）证书续期模板
 ├── tests/               # 离线单元测试（75 项，全部 mock 网络）
-├── .github/workflows/ci.yml          # GitHub Actions：Ubuntu/Windows × py3.10/3.12
+├── .github/workflows/ci.yml          # GitHub Actions：Ubuntu/Windows × py3.10/3.12 跑 pytest
+├── .github/workflows/docker.yml      # GitHub Actions：镜像冒烟 + amd64/arm64 发布
 ├── data/cache/          # 音频缓存（已 gitignore）
 ├── data/lyrics/         # 字幕歌词缓存（已 gitignore）
 ├── data/cookies.txt     # 浏览器登录态（运行时生成，已 gitignore）
@@ -536,7 +543,8 @@ music-mp3-api/
 ├── .env                 # 本机配置（已 gitignore，自动加载）
 ├── .env.example
 ├── run.py / start.bat
-├── Dockerfile
+├── Dockerfile / .dockerignore
+├── docker-compose.yml               # 一键启动官方镜像
 ├── LICENSE              # MIT
 ├── NOTICE.md            # 合规声明与第三方组件说明
 ├── .gitattributes
@@ -547,4 +555,5 @@ music-mp3-api/
 
 - **绝不入库**：`.env`（含真实 `MUSIC_API_KEY`）、`data/cookies*.txt`、Cookie-Editor 导出的中间文件、Chrome profile 备份、`*.log`（访问日志含完整请求 URL 与 `api_key`）、缓存音频、`downloads/*.mp3`、本机运维脚本。`.gitignore` 已逐项覆盖。
 - **文档脱敏**：README / `docs/API.md` 中的域名、邮箱、IP、绝对路径均为示例占位符，请替换为你自己的部署值。
+- **镜像安全**：`.dockerignore` 是白名单，只放构建必需文件；`.env`、`data/cookies*.txt`、`*.log`、缓存音频不会进入构建上下文或镜像层。GHCR 由 CI 用 `GITHUB_TOKEN` 推送，Docker Hub 凭据仅存 GitHub Actions secrets，不入库。
 - **合规**：本项目仅作技术演示与个人自用，请勿用于公开分发、商业服务或侵犯版权的内容，详见顶部合规提示。

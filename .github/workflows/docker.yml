@@ -1,0 +1,129 @@
+name: Docker
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  workflow_dispatch:
+
+concurrency:
+  group: docker-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  # 先在原生 amd64 上构建并真实启动容器，确认 ffmpeg / Node / /api/health 都正常
+  smoke:
+    name: build & smoke test (amd64)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - name: Build image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          load: true
+          tags: music-mp3-api:smoke
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      - name: Run container and probe health
+        run: |
+          docker run -d --name mp3smoke -p 8000:8000 music-mp3-api:smoke
+          ok=0
+          for i in $(seq 1 30); do
+            if curl -fsS --max-time 3 http://127.0.0.1:8000/api/health > /tmp/health.json; then ok=1; break; fi
+            sleep 2
+          done
+          echo "--- /api/health ---"; cat /tmp/health.json 2>/dev/null || true
+          echo "--- node ---"; docker exec mp3smoke node --version
+          echo "--- ffmpeg ---"; docker exec mp3smoke ffmpeg -version | head -1
+          echo "--- container logs ---"; docker logs mp3smoke 2>&1 | tail -15
+          test "$ok" = "1"
+      - name: Cleanup
+        if: always()
+        run: docker rm -f mp3smoke || true
+
+  # 多架构构建并推送 GHCR；配置 Docker Hub secrets 后同步推送 Docker Hub
+  publish:
+    name: publish (amd64 + arm64)
+    runs-on: ubuntu-latest
+    needs: smoke
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Read app version
+        id: ver
+        run: |
+          v=$(sed -n 's/^__version__ = "\([^"]*\)"/\1/p' app/__init__.py)
+          echo "value=${v:-dev}" >> "$GITHUB_OUTPUT"
+
+      # secrets 不能直接在 job-level if 中使用，用 env 中转判断
+      - name: Check Docker Hub secrets
+        id: dh
+        env:
+          U: ${{ secrets.DOCKERHUB_USERNAME }}
+          T: ${{ secrets.DOCKERHUB_TOKEN }}
+        run: |
+          if [ -n "$U" ] && [ -n "$T" ]; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+            echo "Docker Hub 推送已启用"
+          else
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            echo "未配置 Docker Hub secrets，本次仅推送 GHCR"
+          fi
+
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Login to Docker Hub
+        if: steps.dh.outputs.enabled == 'true'
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Docker meta (GHCR)
+        id: meta_ghcr
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository_owner }}/music-mp3-api
+          tags: |
+            type=raw,value=latest,enable={{is_default_branch}}
+            type=raw,value=${{ steps.ver.outputs.value }},enable={{is_default_branch}}
+            type=ref,event=tag
+            type=sha,format=short
+
+      - name: Docker meta (Docker Hub)
+        id: meta_dh
+        if: steps.dh.outputs.enabled == 'true'
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ secrets.DOCKERHUB_USERNAME }}/music-mp3-api
+          tags: |
+            type=raw,value=latest,enable={{is_default_branch}}
+            type=raw,value=${{ steps.ver.outputs.value }},enable={{is_default_branch}}
+            type=ref,event=tag
+            type=sha,format=short
+
+      - name: Build and push (linux/amd64, linux/arm64)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: |
+            ${{ steps.meta_ghcr.outputs.tags }}
+            ${{ steps.meta_dh.outputs.tags }}
+          labels: ${{ steps.meta_ghcr.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

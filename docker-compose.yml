@@ -1,0 +1,32 @@
+# 一键启动：docker compose up -d
+# 密钥等配置从同目录的 .env 读取（compose 会自动加载），勿把密钥写进本文件。
+services:
+  music-mp3-api:
+    # 用官方预构建镜像；如需本地构建，把 image 换成 build: .
+    image: ghcr.io/joe12801/music-mp3-api:1.2.0
+    # image: <你的 Docker Hub 用户名>/music-mp3-api:1.2.0
+    container_name: music-mp3-api
+    restart: unless-stopped
+    ports:
+      # 只绑定本机，对外请再加 Nginx 反代
+      - "127.0.0.1:8000:8000"
+    environment:
+      MUSIC_HOST: 0.0.0.0
+      MUSIC_PORT: 8000
+      MUSIC_API_KEY: ${MUSIC_API_KEY:-}
+      MUSIC_CORS_ORIGINS: ${MUSIC_CORS_ORIGINS:-*}
+      MUSIC_MAX_CACHE_MB: ${MUSIC_MAX_CACHE_MB:-2048}
+      MUSIC_CACHE_TTL_DAYS: ${MUSIC_CACHE_TTL_DAYS:-30}
+      MUSIC_MP3_BITRATE: ${MUSIC_MP3_BITRATE:-192}
+      MUSIC_PROXY: ${MUSIC_PROXY:-}
+      MUSIC_COOKIES_FILE: ${MUSIC_COOKIES_FILE:-}
+    volumes:
+      - cache:/app/data/cache
+      - lyrics:/app/data/lyrics
+      # 需要登录态时再启用（只读挂载，绝不要打包进镜像）：
+      # - ./data/cookies.txt:/app/data/cookies.txt:ro
+    # 镜像已内置 HEALTHCHECK
+
+volumes:
+  cache:
+  lyrics:
