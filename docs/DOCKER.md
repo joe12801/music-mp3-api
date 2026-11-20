@@ -7,13 +7,14 @@ Music MP3 API 提供官方容器镜像，内置 **Python 3.12 + ffmpeg（libmp3l
 | 仓库 | 地址 |
 | --- | --- |
 | GitHub Container Registry（GHCR） | `ghcr.io/joe12801/music-mp3-api` |
-| Docker Hub | `<你的 Docker Hub 用户名>/music-mp3-api`（发布后生效） |
+| Docker Hub | `joe1280/music-mp3-api`（<https://hub.docker.com/r/joe1280/music-mp3-api>） |
 
-标签：`latest`（main 分支）、`1.2.0`（与 `app/__init__.py` 版本一致）、`sha-<短提交>`、以及打 `v*` tag 时的版本标签。CI 同时构建 **linux/amd64** 与 **linux/arm64** 两种架构，`docker pull` 会自动选匹配本机的镜像；另有 `1.2.0-arm64` 为 ARM64 单架构镜像（在 ARM64 服务器上原生构建）。
+标签：`latest`（main 分支）、`1.2.0`（与 `app/__init__.py` 版本一致）、`sha-<短提交>`、以及打 `v*` tag 时的版本标签。CI 同时构建 **linux/amd64** 与 **linux/arm64** 两种架构，`docker pull` 会自动选匹配本机的镜像；另有 `1.2.0-arm64` 为 ARM64 单架构镜像（在 ARM64 服务器上原生构建，GHCR 与 Docker Hub 均有）。
 
 ```bash
 docker pull ghcr.io/joe12801/music-mp3-api:1.2.0
 docker pull ghcr.io/joe12801/music-mp3-api:latest
+docker pull joe1280/music-mp3-api:1.2.0
 ```
 
 ## 快速运行
@@ -91,7 +92,7 @@ docker buildx build --platform linux/amd64,linux/arm64 -t <你的仓库>/music-m
 
 | Secret | 值 |
 | --- | --- |
-| `DOCKERHUB_USERNAME` | Docker Hub 用户名 |
+| `DOCKERHUB_USERNAME` | Docker Hub 用户名（当前为 `joe1280`） |
 | `DOCKERHUB_TOKEN` | Docker Hub **Access Token**（不是登录密码，建议只读/写范围限定到该仓库） |
 
 保存后手动触发一次 `Docker` workflow（Actions → Docker → Run workflow），或再推一次代码即可。未配置时 workflow 会打印提示并只推 GHCR，不会失败。

@@ -119,7 +119,7 @@ python run.py                  :: 也可直接双击 start.bat
 **Docker（Linux / macOS / Windows 都可用）**：官方镜像内置 Python 3.12、ffmpeg、Node.js、yt-dlp 与 PySocks，宿主机只需 Docker；CI 自动构建 **linux/amd64 + linux/arm64** 双架构并发布到 **GHCR** 与 **Docker Hub**。完整说明见 [`docs/DOCKER.md`](docs/DOCKER.md)。
 
 ```bash
-# 直接拉官方镜像（GHCR；Docker Hub 地址为 <用户名>/music-mp3-api:1.2.0）
+# 直接拉官方镜像（GHCR；Docker Hub 地址为 joe1280/music-mp3-api:1.2.0）
 docker run -d --name music-api -p 127.0.0.1:8000:8000 \
   -e MUSIC_API_KEY=<你的 API Key> \
   -v mp3-cache:/app/data/cache \
@@ -131,6 +131,9 @@ cp .env.example .env && docker compose up -d
 
 # 也可本地构建
 docker build -t music-mp3-api:local .
+
+# Docker Hub 镜像（同一份多架构 manifest）
+docker pull joe1280/music-mp3-api:1.2.0
 ```
 
 > 容器内必须 `MUSIC_HOST=0.0.0.0`（镜像已设好），否则端口映射访问不到；用 `--env-file .env` 时确认 `.env` 里的 `MUSIC_HOST` 不是 `127.0.0.1`。镜像以 UID 10001 运行，bind mount 宿主目录需先 `chown -R 10001:10001 ./data`；`.dockerignore` 白名单确保 `.env`、cookies、`*.log`、缓存音频不会进入镜像。
