@@ -1,0 +1,54 @@
+# Music MP3 API —— Nginx 反向代理示例（Linux）
+#
+# 用法：
+#   sudo cp deploy/nginx.conf.example /etc/nginx/sites-available/music-mp3-api
+#   # 把 mp3.example.com 全部替换为自己的域名
+#   sudo ln -s /etc/nginx/sites-available/music-mp3-api /etc/nginx/sites-enabled/
+#   sudo certbot --nginx -d <你的域名>        # 自动签发并改写 TLS 配置
+#   sudo nginx -t && sudo systemctl reload nginx
+#
+# 关键点：proxy_buffering off + 长超时，保证 Range / 206、大文件与
+# 首次下载（可能几十秒）能正常透传。API 仍只监听 127.0.0.1:8765，
+# 防火墙与云安全组不需要为 8765 放行，公网入口只有 80/443。
+
+server {
+    listen 80;
+    listen [::]:80;
+    server_name mp3.example.com;
+
+    # certbot 的 HTTP-01 校验目录
+    location /.well-known/acme-challenge/ { root /var/www/html; }
+    location / { return 301 https://$host$request_uri; }
+}
+
+server {
+    listen 443 ssl;
+    listen [::]:443 ssl;
+    server_name mp3.example.com;
+
+    # 由 certbot --nginx 自动填写；手工签发时改成自己的证书路径
+    ssl_certificate     /etc/letsencrypt/live/mp3.example.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/mp3.example.com/privkey.pem;
+    ssl_protocols       TLSv1.2 TLSv1.3;
+
+    # 本服务只接受查询参数，不需要上传请求体
+    client_max_body_size 1m;
+
+    # 音频流式返回：关闭缓冲，Range / 206 才能边下边播、拖动进度
+    proxy_buffering off;
+    proxy_request_buffering off;
+    proxy_http_version 1.1;
+    proxy_read_timeout 600s;
+    proxy_send_timeout 600s;
+
+    proxy_set_header Host              $host;
+    proxy_set_header X-Real-IP         $remote_addr;
+    proxy_set_header X-Forwarded-For  $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_set_header Range             $http_range;
+    proxy_set_header If-Range          $http_if_range;
+
+    location / {
+        proxy_pass http://127.0.0.1:8765;
+    }
+}

@@ -1,0 +1,49 @@
+# Music MP3 API —— systemd 单元模板
+#
+# 用法（详见 README「Linux 开机自启服务」）：
+#   1. 把本文件里的 /opt/music-mp3-api 改成你的实际安装目录
+#   2. sudo cp music-mp3-api.service /etc/systemd/system/
+#   3. sudo systemctl daemon-reload && sudo systemctl enable --now music-mp3-api
+#   4. journalctl -u music-mp3-api -f
+#
+# 也可直接用仓库自带的一键脚本：sudo bash deploy/install-linux.sh
+
+[Unit]
+Description=Music MP3 API (yt-dlp + ffmpeg)
+Documentation=https://github.com/joe12801/music-mp3-api
+After=network-online.target
+Wants=network-online.target
+# 若 .env 里启用 Cloudflare WARP SOCKS5 出口，取消下面两行注释，
+# 让 API 等 WARP 隧道就绪后再启动（官方客户端服务名 warp-svc）：
+# After=warp-svc.service
+# Wants=warp-svc.service
+
+[Service]
+Type=simple
+User=musicapi
+Group=musicapi
+WorkingDirectory=/opt/music-mp3-api
+
+# 默认由 app/config.py 直接读取项目根目录的 .env（已 gitignore）。
+# 若你希望改由 systemd 统一管理环境变量，可取消下一行注释；注意两种
+# 加载方式对 .env 里 "#" 注释与引号的解析略有差异，二选一即可。
+# EnvironmentFile=-/opt/music-mp3-api/.env
+
+ExecStart=/opt/music-mp3-api/.venv/bin/python -u run.py
+Restart=always
+RestartSec=5
+
+# 日志走 journald；访问日志会记录完整 URL（含 ?api_key=），勿公开导出
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=music-mp3-api
+
+# 基础加固：仅允许写项目内的 data / downloads，其它路径只读
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=read-only
+ReadWritePaths=/opt/music-mp3-api/data /opt/music-mp3-api/downloads
+
+[Install]
+WantedBy=multi-user.target

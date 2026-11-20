@@ -65,25 +65,70 @@ python run.py               # http://127.0.0.1:8000
 | yt-dlp-ejs | requirements 已含，提供 YouTube JS challenge 求解脚本 |
 | Node.js 18+ 或 Deno | **必须**：YouTube 的 n/signature challenge 需要 JS 运行时，否则只返回图片格式 |
 
+### 平台支持
+
+项目本身是纯 Python，跨平台运行；CI 在 **Ubuntu + Windows × Python 3.10/3.12** 上跑同一套测试。
+
+| 平台 | 推荐运行方式 |
+| --- | --- |
+| **Linux**（含 ARM64 服务器 / 树莓派 / NAS） | `systemd` 服务（仓库提供 [`deploy/`](deploy/README.md) 模板）或 Docker；反向代理用 Nginx + certbot |
+| **Windows** 10/11/Server | 直接 `python run.py`，或用 nssm 注册成开机自启服务 |
+| **macOS** | 直接 `python run.py`（Homebrew 安装依赖） |
+
+### Linux 依赖安装
+
+```bash
+# Debian / Ubuntu
+sudo apt update && sudo apt install -y python3 python3-venv python3-pip ffmpeg nodejs curl
+node -v                 # 需 >= 18
+ffmpeg -version | head -1   # 需带 libmp3lame
+```
+
+```bash
+# RHEL / Fedora / Rocky（ffmpeg 可能需要先启用 RPM Fusion 等第三方源）
+sudo dnf install -y python3 python3-pip ffmpeg nodejs curl
+
+# Arch
+sudo pacman -S python ffmpeg nodejs
+```
+
+发行版自带的 Node 若低于 18，用 [NodeSource](https://github.com/nodesource/distributions) 或 nvm 安装新版本；`yt-dlp-ejs` 依赖它求解 YouTube 的 JS challenge。Docker 镜像已内置 ffmpeg，宿主机无需安装这些依赖。
+
 ## 快速开始
+
+**Linux / macOS**
 
 ```bash
 cd music-mp3-api
+python3 -m venv .venv && source .venv/bin/activate
 python -m pip install -r requirements.txt
-cp .env.example .env          # Windows: copy .env.example .env
-python run.py                 # 或 python -m uvicorn app.main:app --reload
+cp .env.example .env           # 按需修改端口、API Key、缓存上限
+python run.py                  # 或 python -m uvicorn app.main:app --reload
+```
+
+**Windows**（CMD / PowerShell）
+
+```bat
+python -m pip install -r requirements.txt
+copy .env.example .env
+python run.py                  :: 也可直接双击 start.bat
 ```
 
 打开 <http://127.0.0.1:8000> 用演示页，或 <http://127.0.0.1:8000/docs> 看 Swagger 文档（端口由 `MUSIC_PORT` 决定，改 `.env` 即可自定义）。
 
-Windows 也可以直接双击 `start.bat`。
-
-Docker：
+**Docker（Linux 上最省事）**：镜像基于 `python:3.12-slim` 并内置 ffmpeg，宿主机只需 Docker。
 
 ```bash
 docker build -t music-mp3-api .
-docker run -d --name music-api -p 8000:8000 -v "$PWD/data/cache:/app/data/cache" music-mp3-api
+docker run -d --name music-api -p 8000:8000 \
+  -e MUSIC_HOST=0.0.0.0 \
+  -e MUSIC_API_KEY=<你的 API Key> \
+  -v "$PWD/data/cache:/app/data/cache" \
+  -v "$PWD/data/lyrics:/app/data/lyrics" \
+  music-mp3-api
 ```
+
+> 容器内必须 `MUSIC_HOST=0.0.0.0`，否则端口映射访问不到。若改用 `--env-file .env`，请确认 `.env` 里的 `MUSIC_HOST` 不是 `127.0.0.1`（环境变量优先级高于 Dockerfile 默认值）。Windows 上把 `$PWD` 换成 `%CD%` 或绝对路径。
 
 ## 配置项
 
@@ -259,9 +304,11 @@ yt-dlp 的 `YoutubeDL.close()` 只要设置了 `cookiefile` 就会把 cookiejar 
 
 **根因**：部分云厂商（如 `AS31898 Oracle Corporation`）的出口 IP 段被 YouTube 拉黑。若环境里注入的 `HTTP_PROXY` 出口仍是同一个被限制的 IP，则「走代理」等于没换出口。cookie、Chrome 登录态、yt-dlp 版本都不是原因，**不需要重新登录或重启 Chrome**。
 
-**解决：官方 Cloudflare WARP 免费 SOCKS5 代理（已验证通过）**
+**解决：官方 Cloudflare WARP 免费 SOCKS5 代理（Linux / Windows 均可用，已验证通过）**
 
-`warp-cli` 的 **proxy 模式**只在本机起一个 SOCKS5 代理，把 yt-dlp 的出口换成 Cloudflare `AS13335`，**不接管全局路由**（远程桌面不会断）。
+`warp-cli` 的 **proxy 模式**只在本机起一个 SOCKS5 代理，把 yt-dlp 的出口换成 Cloudflare `AS13335`，**不接管全局路由**（SSH / 远程桌面不会断）。
+
+#### Windows
 
 1. 安装官方客户端：<https://1111-releases.cloudflareclient.com/windows/Cloudflare_WARP_Release-x64.msi>
    （静默安装：`msiexec /i Cloudflare_WARP.msi /quiet /norestart`）。
@@ -275,12 +322,37 @@ yt-dlp 的 `YoutubeDL.close()` 只要设置了 `cookiefile` 就会把 cookiejar 
    & $cli status             # Connected / healthy
    ```
    项目内提供 `tools/start_warp_proxy.ps1` 一键检查 / 恢复上述状态。
-3. 在 `.env` 配置并重启 API 服务：
+
+#### Linux（Debian / Ubuntu）
+
+1. 安装官方客户端（或直接跑一键脚本 `sudo bash tools/start_warp_proxy.sh`，它会自动完成安装、注册与模式切换）：
+   ```bash
+   sudo install -d /usr/share/keyrings
+   curl -fsSL https://pkg.cloudflareclient.com/pubkey.gpg \
+     | sudo gpg --yes --dearmor -o /usr/share/keyrings/cloudflare-warp-archive-keyring.gpg
+   echo "deb [signed-by=/usr/share/keyrings/cloudflare-warp-archive-keyring.gpg] https://pkg.cloudflareclient.com/ $(lsb_release -cs) main" \
+     | sudo tee /etc/apt/sources.list.d/cloudflare-client.list
+   sudo apt update && sudo apt install -y cloudflare-warp
+   ```
+2. 注册并切换（`warp-svc` 是系统服务，开机自启）：
+   ```bash
+   sudo systemctl enable --now warp-svc
+   sudo warp-cli --accept-tos registration new
+   sudo warp-cli mode proxy
+   sudo warp-cli proxy port 40000
+   sudo warp-cli connect
+   warp-cli status             # Connected / healthy
+   ```
+   旧版 `warp-cli` 语法为 `register` / `set-mode` / `set-proxy-port`，一键脚本已兼容两种。RHEL/Fedora、Arch 请按 [Cloudflare 官方仓库](https://pkg.cloudflareclient.com/) 说明安装客户端，后续命令相同。若 API 也用 systemd 托管，可在 unit 里加 `After=warp-svc.service` / `Wants=warp-svc.service`（模板已给出注释）。
+
+#### 通用步骤（两个平台一样）
+
+1. 在 `.env` 配置并重启 API 服务：
    ```env
    MUSIC_PROXY=socks5://127.0.0.1:40000
    ```
-   yt-dlp 走 SOCKS5 需要 `PySocks`：`python -m pip install PySocks`。
-4. 验证出口已切换：
+   yt-dlp 走 SOCKS5 需要 `PySocks`：`python -m pip install PySocks`（Linux venv 用 `.venv/bin/python -m pip install PySocks`）。
+2. 验证出口已切换：
    ```bash
    curl -s --noproxy '*' https://api.ipify.org                          # 直连：本机原出口 IP
    curl -s --socks5-hostname 127.0.0.1:40000 https://ipinfo.io/json     # WARP：Cloudflare IP
@@ -292,19 +364,19 @@ yt-dlp 的 `YoutubeDL.close()` 只要设置了 `cookiefile` 就会把 cookiejar 
 
 ## 远程访问（Nginx 反向代理）
 
-可用 Nginx 把自有域名反代到 `127.0.0.1:8765`，**无需把 8765 暴露到公网，也不用改云安全组**。（下方域名、路径均为示例，部署时请替换为你自己的值。）
+Linux 与 Windows 都可用 Nginx 把自有域名反代到 `127.0.0.1:8765`，**无需把 8765 暴露到公网，也不用改云安全组**。（下方域名、路径均为示例，部署时请替换为你自己的值。）
 
 | 项 | 值 |
 |---|---|
 | 对外地址 | `https://mp3.example.com`（示例域名；HTTP 80 也可用） |
 | 上游 | `http://127.0.0.1:8765`（`MUSIC_HOST=127.0.0.1`） |
-| TLS | Let's Encrypt（lego HTTP-01 签发），SAN 填自己的域名 |
+| TLS | Let's Encrypt；Linux 用 certbot，Windows 可用 lego（见下） |
 | 认证 | `MUSIC_API_KEY`，见下方 |
 
-- 反代配置写在独立的 `mp3_proxy.conf`，由 `nginx.conf` 里 `include mp3_proxy.conf;` 引入。按 `server_name` 精确匹配，可与同机其它站点完全隔离，无需改动已有 server 配置。
-- 音频场景做了 `proxy_buffering off` 与 600s 读写超时，Range / 206、大文件下载可正常透传；同时透传 `X-Forwarded-*`。
-- 证书续期：以管理员运行自己的 lego 续期脚本，或自行加入计划任务。仓库提供模板 `tools/renew_cert.example.cmd`（填好路径/域名/邮箱后另存为 `tools/renew_mp3_cert.cmd`，该文件已被 `.gitignore` 排除）。lego 只在临近到期时重签；若 nginx 以系统服务运行，普通 `nginx -s reload` 可能被拒绝，改为重启对应服务。
-- 服务仍只监听本机 `127.0.0.1:8765`，Windows 防火墙与云安全组都**不需要**为 8765 放行；公网入口只有既有的 80/443。
+- **Linux**：复制 [`deploy/nginx.conf.example`](deploy/nginx.conf.example) 到 `/etc/nginx/sites-available/music-mp3-api`，替换域名后软链到 `sites-enabled`，`sudo nginx -t` 通过再 `sudo systemctl reload nginx`。证书一条命令：`sudo certbot --nginx -d <你的域名>`；certbot 自带 systemd timer 自动续期（`systemctl list-timers | grep certbot` 可确认），需要自定义 reload 钩子时用模板 `tools/renew_cert.example.sh`。
+- **Windows**：反代配置写在独立的 `mp3_proxy.conf`，由 `nginx.conf` 里 `include mp3_proxy.conf;` 引入，按 `server_name` 精确匹配，可与同机其它站点隔离。证书续期模板为 `tools/renew_cert.example.cmd`（复制填写后另存，实际脚本已被 `.gitignore` 排除）；若 nginx 以系统服务运行，普通 `nginx -s reload` 可能被拒绝，改为重启对应服务。
+- 音频场景做了 `proxy_buffering off` 与 600s 读写超时，Range / 206、大文件下载可正常透传；同时透传 `X-Forwarded-*` 与 `Range` / `If-Range` 头。
+- 服务仍只监听本机 `127.0.0.1:8765`，本机防火墙（Windows Defender 防火墙 / `ufw` / `firewalld`）与云安全组都**不需要**为 8765 放行；公网入口只有既有的 80/443。
 
 ### API Key（对外必须启用）
 
@@ -336,12 +408,57 @@ https://mp3.example.com/?key=<你的 API Key>
 - **日志**：uvicorn 访问日志 + `music_api` logger；建议接日志采集。
 - **合规**：再次确认上方合规提示，勿作为公开音乐分发服务。
 
-## Windows 开机自启服务（可选）
+## 开机自启服务（可选）
 
-可把 MP3 API 注册为 **Windows 服务**（nssm 托管），与终端会话完全解耦：关闭终端、注销登录都不影响它，重启机器后自动恢复。下方为一份示例配置。
+把 API 注册成系统服务后，它与终端会话完全解耦：关闭终端、注销登录都不影响，重启机器自动恢复。Linux 用 **systemd**，Windows 用 **nssm**；模板与一键脚本都在仓库里。
+
+### Linux（systemd，推荐）
 
 | 项 | 值 |
 |---|---|
+| 服务名 | `music-mp3-api` |
+| 运行账户 | 专用低权限用户 `musicapi`（非 root） |
+| 工作目录 | `/opt/music-mp3-api`（`.env`、`data/cache`、`data/cookies.txt` 均按此解析） |
+| 应用 | venv 内的 Python + `-u run.py` |
+| 日志 | `journald`（`journalctl -u music-mp3-api -f`） |
+| 崩溃恢复 | `Restart=always` + `RestartSec=5` |
+
+**一键部署**（Debian/Ubuntu、RHEL/Fedora，需 root）：
+
+```bash
+sudo bash deploy/install-linux.sh                    # 默认装到 /opt/music-mp3-api
+# 自定义目录： sudo bash deploy/install-linux.sh /srv/music-api
+```
+
+脚本会装系统依赖、建专用用户与 venv、复制代码、注册并启动服务，最后做一次 `/api/health` 探活。想自己控制每一步，就手动编辑 [`deploy/music-mp3-api.service`](deploy/music-mp3-api.service)（改安装目录与运行用户）后执行：
+
+```bash
+sudo cp deploy/music-mp3-api.service /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now music-mp3-api
+```
+
+常用命令：
+
+```bash
+systemctl status music-mp3-api              # 状态
+sudo systemctl restart music-mp3-api     # 改完 .env / Python 代码后必须重启
+sudo journalctl -u music-mp3-api -f         # 实时日志
+sudo systemctl disable --now music-mp3-api # 停用
+```
+
+公网链路同样全部开机自启，无需手工干预：
+
+- `warp-svc`（WARP 客户端，Auto）→ `127.0.0.1:40000` SOCKS5 出口
+- `nginx`（Auto）→ 监听 80/443，反代到 `127.0.0.1:8765`
+- `music-mp3-api`（本服务，Auto）→ `127.0.0.1:8765`
+
+> 没有 systemd 的极简容器请改用 Docker；Nginx 配置见 [`deploy/nginx.conf.example`](deploy/nginx.conf.example)，证书用 `certbot --nginx`。
+
+### Windows（nssm）
+
+| 项 | 值 |
+| --- | --- |
 | 服务名 / 显示名 | `MusicMp3Api` / `Music MP3 API` |
 | 运行账户 / 启动类型 | `LocalSystem` / `Automatic`（开机自启） |
 | 工作目录 | 项目根目录（`.env`、`data/cache`、`data/cookies.txt` 均按此解析） |
@@ -349,7 +466,7 @@ https://mp3.example.com/?key=<你的 API Key>
 | 日志 | `data\service.log`，10 MB 自动轮转 |
 | 崩溃恢复 | 进程退出后 5 秒自动重启（`AppExit Default=Restart`） |
 
-公网链路同样全部开机自启，无需手工干预：
+公网链路同样全部开机自启：
 
 - `CloudflareWARP`（系统服务，Auto）→ `127.0.0.1:40000` SOCKS5 出口
 - `XiaoZhiWeb` 一类的 nginx 服务（Auto）→ 监听 80/443，反代到 `127.0.0.1:8765`
@@ -363,13 +480,13 @@ Restart-Service MusicMp3Api               # 改完 .env / Python 代码后必须
 Get-Content .\data\service.log -Tail 50   # 查看日志
 ```
 
-> **改完 `.env` 必须 `Restart-Service MusicMp3Api`**：配置在进程启动时读取并缓存，不会热加载。
+> **改完 `.env` 必须重启服务**：配置在进程启动时读取并缓存，不会热加载（Linux `systemctl restart`，Windows `Restart-Service`）。
 >
-> **日志含密钥**：uvicorn 访问日志会记录完整请求 URL（含 `api_key` query 参数）。`*.log` 已在 `.gitignore` 中，请勿外传日志文件。
+> **日志含密钥**：uvicorn 访问日志会记录完整请求 URL（含 `api_key` query 参数）。`*.log` 已在 `.gitignore` 中，Linux 的 journald 导出文件同样请勿外传。
 >
-> **路径依赖**：服务指向你本机 Python 解释器的绝对路径（`<PYTHON_EXE>`）。若该版本升级或目录变化，用 `nssm set MusicMp3Api Application "<新 python.exe 路径>"` 更新即可。
+> **路径依赖**：服务指向 Python 解释器的绝对路径（Linux `/opt/music-mp3-api/.venv/bin/python`，Windows `<PYTHON_EXE>`）。解释器升级或目录变化后，改 unit 的 `ExecStart`，或用 `nssm set MusicMp3Api Application "<新路径>"` 更新。
 >
-> 卸载：`nssm remove MusicMp3Api confirm`。
+> 卸载（Windows）：`nssm remove MusicMp3Api confirm`。
 
 ## 测试
 
@@ -395,14 +512,21 @@ music-mp3-api/
 ├── docs/
 │   ├── API.md           # 第三方接入文档（可独立交付）
 │   └── openapi.json     # OpenAPI 3.1 规格快照，可导入 Postman / Apifox
+├── deploy/                           # Linux 部署模板（详见 deploy/README.md）
+│   ├── install-linux.sh              # 一键装依赖 + venv + systemd 服务
+│   ├── music-mp3-api.service          # systemd 单元（开机自启 / 崩溃重启）
+│   ├── nginx.conf.example            # Nginx 反代 + certbot 示例
+│   └── README.md
 ├── tools/
-│   ├── start_warp_proxy.ps1           # 一键启用/恢复 WARP SOCKS5 代理
+│   ├── start_warp_proxy.ps1           # Windows：一键启用/恢复 WARP SOCKS5
+│   ├── start_warp_proxy.sh            # Linux：一键启用/恢复 WARP SOCKS5
 │   ├── import_cookie_editor.py        # 推荐：导入 Cookie-Editor 导出的 cookies
 │   ├── refresh_chrome.py              # 安全重启 Chrome 打开 YouTube 刷新短效 cookie
 │   ├── export_chrome_cookies.py       # 旧版 Chrome（<127）自动导出，新版勿用
 │   ├── export_chrome_cookies_extension.py
 │   ├── export_chrome_cookies_hybrid.py
-│   └── renew_cert.example.cmd         # 证书续期模板（复制填写后使用，实际脚本不入库）
+│   ├── renew_cert.example.cmd         # Windows（lego）证书续期模板
+│   └── renew_cert.example.sh          # Linux（certbot）证书续期模板
 ├── tests/               # 离线单元测试（75 项，全部 mock 网络）
 ├── .github/workflows/ci.yml          # GitHub Actions：Ubuntu/Windows × py3.10/3.12
 ├── data/cache/          # 音频缓存（已 gitignore）

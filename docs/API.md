@@ -24,7 +24,7 @@
 | 健康检查 | `GET {BASE_URL}/api/health`（**无需认证**，接入前先调用） |
 | 演示页 | `GET {BASE_URL}/`（非接口，仅供人工测试） |
 
-> 生产部署通常经 Nginx 反向代理对外提供（域名 → `127.0.0.1:8765`），服务本体不监听公网，调用方只需访问部署方给出的域名。演示页可用 `GET {BASE_URL}/?key=<your-key>` 直达并自动填入密钥。
+> 生产部署通常经 Nginx 反向代理对外提供（域名 → `127.0.0.1:8765`），服务本体不监听公网，调用方只需访问部署方给出的域名。演示页可用 `GET {BASE_URL}/?key=<your-key>` 直达并自动填入密钥。服务端可运行在 Linux（systemd / Docker）、Windows 或 macOS 上，本文接口与调用方式完全一致，调用方无需关心部署平台。
 
 下文示例统一使用变量 `BASE`：
 
@@ -702,7 +702,7 @@ console.log(probe.status, probe.headers.get("X-Cache"), probe.headers.get("Conte
 | `MUSIC_LYRICS_TTL_DAYS` | `7` | 字幕歌词缓存 TTL（天），独立于音频缓存 |
 | `MUSIC_LYRICS_EXTERNAL` | `true` | YouTube 无字幕时是否回退到 LRCLIB；`false` 可关闭所有第三方歌词请求 |
 | `MUSIC_PROXY` | 空 | 出站代理（被风控的机房出口需配置） |
-| `MUSIC_FFMPEG_PATH` | 空 | ffmpeg 绝对路径；留空则从 PATH 查找。以 Windows 服务（LocalSystem）运行时 PATH 常不含 ffmpeg，建议写死 `C:/ffmpeg/bin/ffmpeg.exe` |
+| `MUSIC_FFMPEG_PATH` | 空 | ffmpeg 绝对路径；留空则从 PATH 查找。Linux（systemd / Docker）一般留空即可（`/usr/bin/ffmpeg`）；以 Windows 服务（LocalSystem）运行时 PATH 常不含 ffmpeg，建议写死绝对路径如 `C:/ffmpeg/bin/ffmpeg.exe` |
 | `MUSIC_COOKIES_FILE` | 空 | 登录态 cookies 文件 |
 | `MUSIC_DEMO_UI` | `true` | 是否启用演示页 |
 

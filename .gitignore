@@ -36,8 +36,11 @@ downloads/*
 !downloads/.gitkeep
 
 # ---- 本机运维产物（含个人路径 / 大体积安装包）----
-# 实际续期脚本含本机绝对路径与邮箱，未入库；仓库提供 renew_cert.example.cmd 模板
+# 实际续期脚本含本机绝对路径 / 域名 / 邮箱，未入库；
+# 仓库提供 renew_cert.example.cmd（Windows）与 renew_cert.example.sh（Linux）模板
 tools/renew_mp3_cert.cmd
+tools/renew_cert.sh
+tools/renew_cert.cmd
 tools/warp/*
 tools/_tmp*/
 tests/_tmp_cache/
