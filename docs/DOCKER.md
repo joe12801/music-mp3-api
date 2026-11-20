@@ -12,7 +12,7 @@ Music MP3 API 提供官方容器镜像，内置 **Python 3.12 + ffmpeg（libmp3l
 
 标签：`latest`（main 分支）、`1.2.0`（与 `app/__init__.py` 版本一致）、`sha-<短提交>`、以及打 `v*` tag 时的版本标签。CI 同时构建 **linux/amd64** 与 **linux/arm64** 两种架构，`docker pull` 会自动选匹配本机的镜像；另有 `1.2.0-arm64` 为 ARM64 单架构镜像（在 ARM64 服务器上原生构建，GHCR 与 Docker Hub 均有）。
 
-三处仓库的 **amd64 / arm64 子镜像与层完全一致**（同一份构建产物）。ACR 个人版不接受带 provenance attestation 的 OCI index，因此 ACR 上的 manifest list 去掉了 attestation（CI 已设 `provenance: false`），list 级 digest 与 GHCR / Docker Hub 略有不同，但镜像内容相同。国内服务器建议优先用阿里云 ACR 地址，拉取速度通常明显快于 GHCR / Docker Hub。
+三处仓库由**同一条 CI 流水线**以 `provenance: false` 构建并推送，manifest list 与 amd64 / arm64 子镜像的 digest 完全相同（`1.2.0` 当前为 `sha256:9ff84ed198b…`），是同一份镜像。国内服务器建议优先用阿里云 ACR 地址，拉取速度通常明显快于 GHCR / Docker Hub。
 
 ```bash
 docker pull ghcr.io/joe12801/music-mp3-api:1.2.0
